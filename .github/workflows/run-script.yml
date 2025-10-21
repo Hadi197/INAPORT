@@ -24,7 +24,7 @@ jobs:
 
     - name: Run INAPORT script
       run: |
-        python ina.py --kode IDGRE --tahun 2025 --bulan 10
+        python ina.py --kode all --tahun 2025 --bulan 10
 
     - name: Upload results
       uses: actions/upload-artifact@v4
