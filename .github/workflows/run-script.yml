@@ -1,0 +1,36 @@
+name: Run INAPORT Script Daily at 23:00
+
+on:
+  schedule:
+    - cron: '0 23 * * *'  # Every day at 23:00 UTC
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  run-script:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+
+    - name: Run INAPORT script
+      run: |
+        python ina.py --kode IDGRE --tahun 2025 --bulan 10
+
+    - name: Upload results
+      uses: actions/upload-artifact@v4
+      with:
+        name: inaport-results
+        path: |
+          ina.csv
+          hasil_scrap.csv
+          hasil_scrap.json
