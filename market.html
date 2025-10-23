@@ -1,0 +1,2242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Market Share Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+    <script>
+        // Register Chart.js plugins
+        Chart.register(ChartDataLabels);
+    </script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .card-hover {
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+        }
+        .tab-content {
+            display: block;
+        }
+        .tab-content.hidden {
+            display: none !important;
+            visibility: hidden !important;
+            opacity: 0 !important;
+        }
+        .tab-content.hidden * {
+            display: none !important;
+        }
+        .tab-button.active {
+            color: #2563eb;
+            border-bottom-color: #3b82f6;
+        }
+        .loading-spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Ensure table text is visible */
+        #dataTableTab td, #dataTableTab th {
+            color: #111827 !important;
+            background: transparent !important;
+        }
+        #tableBodyTab {
+            background: white !important;
+        }
+        .table-container {
+            background: white !important;
+        }
+        /* Filter row styling */
+        #filterHeaderTab th {
+            padding: 0.5rem 1.5rem !important;
+            background: #f3f4f6 !important;
+        }
+        #filterHeaderTab input {
+            font-size: 0.75rem !important;
+            line-height: 1rem !important;
+        }
+        #filterHeaderTab input:focus {
+            outline: none !important;
+            box-shadow: 0 0 0 1px #3b82f6 !important;
+        }
+    </style>
+    <script>
+        // Update title and heading with current year
+        document.addEventListener('DOMContentLoaded', function() {
+            const currentYear = new Date().getFullYear();
+            const newTitle = `Market Share Dashboard (${currentYear})`;
+            
+            // Update page title
+            document.title = newTitle;
+            
+            // Update main heading
+            const mainHeading = document.querySelector('h1');
+            if (mainHeading && mainHeading.textContent === 'Market Share Dashboard') {
+                mainHeading.textContent = newTitle;
+            }
+            
+            // Update copyright year
+            const copyrightElement = document.querySelector('p.hidden');
+            if (copyrightElement) {
+                copyrightElement.innerHTML = `&copy; ${currentYear} INAPORT Market Share Dashboard. Built with Tailwind CSS & Chart.js`;
+            }
+        });
+    </script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="gradient-bg text-white py-6">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h1 class="text-3xl font-bold">Market Share Dashboard</h1>
+                    <p class="text-blue-100 mt-2">Port Operations & Ship Movement Analytics</p>
+                    <p class="text-blue-200 text-sm mt-1 hidden" id="filterIndicator">Filtered: Kedatangan/Keberangkatan/KAPAL PINDAH • SPK PANDU services only</p>
+                </div>
+                <div class="text-right">
+                    <div class="mb-4">
+                        <div class="relative">
+                            <select id="portFilter" class="bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50">
+                                <option value="">All Ports</option>
+                            </select>
+                            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
+                                <svg class="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                    <p class="text-sm hidden">Last Updated: October 21, 2025</p>
+                    <p class="text-sm hidden">Data Source: INAPORT Monitoring System</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Tab Navigation -->
+    <div class="bg-white shadow-sm border-b border-gray-200">
+        <div class="container mx-auto px-4">
+            <nav class="flex space-x-8">
+                <button id="tab-dashboard1" class="tab-button active py-4 px-1 border-b-2 border-blue-500 text-blue-600 font-medium text-sm">
+                    DASHBOARD 1
+                </button>
+                <button id="tab-dashboard2" class="tab-button py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm">
+                    DASHBOARD 2
+                </button>
+                <button id="tab-data-tabel" class="tab-button py-4 px-1 border-b-2 border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300 font-medium text-sm">
+                    DATA TABEL
+                </button>
+            </nav>
+        </div>
+    </div>
+
+    <!-- Tab Content -->
+    <div id="tab-content-dashboard1" class="tab-content">
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" style="display: none;">
+            <div class="bg-white rounded-lg p-6 flex items-center space-x-4">
+                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                <div>
+                    <p class="text-lg font-semibold text-gray-900">Loading Data...</p>
+                    <p class="text-sm text-gray-600">Please wait while we process the port data</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Processing Indicator -->
+        <div id="processingIndicator" class="fixed top-4 right-4 bg-blue-500 text-white px-4 py-2 rounded-lg shadow-lg z-40" style="display: none;">
+            <div class="flex items-center space-x-2">
+                <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <span class="text-sm">Processing...</span>
+            </div>
+        </div>
+
+        <!-- Key Metrics -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div class="bg-white rounded-lg shadow-lg p-6 card-hover">
+                <div class="flex items-center mb-4">
+                    <div class="p-3 rounded-full bg-blue-500 text-white">
+                        <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4 flex-1">
+                        <p class="text-sm font-medium text-gray-600">Total Ships</p>
+                        <p class="text-xl font-bold text-gray-900 break-all" id="totalShips">-</p>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between bg-green-50 rounded-lg p-3">
+                        <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium flex-shrink-0">PELINDO</span>
+                        <span class="font-semibold text-green-900 text-sm break-all ml-2" id="pelindoShips">-</span>
+                    </div>
+                    <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                        <span class="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-medium flex-shrink-0">NON PELINDO</span>
+                        <span class="font-semibold text-gray-900 text-sm break-all ml-2" id="nonPelindoShips">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-lg p-6 card-hover">
+                <div class="flex items-center mb-4">
+                    <div class="p-3 rounded-full bg-green-500 text-white">
+                        <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4 flex-1">
+                        <p class="text-sm font-medium text-gray-600">PELINDO Share</p>
+                        <p class="text-xl font-bold text-gray-900" id="pelindoShare">-</p>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between bg-green-50 rounded-lg p-3">
+                        <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium flex-shrink-0">PELINDO</span>
+                        <span class="font-semibold text-green-900 text-sm" id="pelindoPercentage">-</span>
+                    </div>
+                    <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                        <span class="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-medium flex-shrink-0">NON PELINDO</span>
+                        <span class="font-semibold text-gray-900 text-sm" id="nonPelindoPercentage">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-lg p-6 card-hover">
+                <div class="flex items-center mb-4">
+                    <div class="p-3 rounded-full bg-purple-500 text-white">
+                        <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4 flex-1">
+                        <p class="text-sm font-medium text-gray-600">Total GT</p>
+                        <p class="text-xl font-bold text-gray-900 break-all" id="totalGT">-</p>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between bg-green-50 rounded-lg p-3">
+                        <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium flex-shrink-0">PELINDO</span>
+                        <span class="font-semibold text-green-900 text-sm break-all ml-2" id="totalGTpelindo">-</span>
+                    </div>
+                    <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                        <span class="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-medium flex-shrink-0">NON PELINDO</span>
+                        <span class="font-semibold text-gray-900 text-sm break-all ml-2" id="totalGTnonPelindo">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white rounded-lg shadow-lg p-6 card-hover">
+                <div class="flex items-center mb-4">
+                    <div class="p-3 rounded-full bg-orange-500 text-white">
+                        <svg class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z" clip-rule="evenodd"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-4 flex-1">
+                        <p class="text-sm font-medium text-gray-600">Active Terminals</p>
+                        <p class="text-xl font-bold text-gray-900 break-all" id="activeTerminals">-</p>
+                    </div>
+                </div>
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between bg-green-50 rounded-lg p-3">
+                        <span class="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium flex-shrink-0">PELINDO</span>
+                        <span class="font-semibold text-green-900 text-sm break-all ml-2" id="pelindoTerminals">-</span>
+                    </div>
+                    <div class="flex items-center justify-between bg-gray-50 rounded-lg p-3">
+                        <span class="px-2 py-1 bg-gray-100 text-gray-800 rounded-full text-xs font-medium flex-shrink-0">NON PELINDO</span>
+                        <span class="font-semibold text-gray-900 text-sm break-all ml-2" id="nonPelindoTerminals">-</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Monthly SPK Category Bar Chart -->
+        <div class="bg-white rounded-lg shadow-lg p-6 card-hover mb-8">
+            <h3 class="text-xl font-bold text-gray-900 mb-4">Market Share Berdasarkan Bulan</h3>
+            <div class="h-80">
+                <canvas id="monthlySpkChart"></canvas>
+            </div>
+        </div>
+
+    <!-- Charts Grid -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8 auto-rows-min">
+            <!-- Combined Charts Container -->
+            <div class="bg-white rounded-lg shadow-lg p-6 card-hover">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                    <div class="flex flex-col items-center">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4 text-center">Distribusi Pelayaran (PELINDO)</h3>
+                        <div class="w-full max-w-xs mx-auto">
+                            <canvas id="trayekChart" style="max-height: 300px;"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Pelayaran Distribution (NON PELINDO) Chart -->
+                    <div class="flex flex-col items-center">
+                        <h3 class="text-xl font-bold text-gray-900 mb-4 text-center">Distribusi Pelayaran (NON PELINDO)</h3>
+                        <div class="w-full max-w-xs mx-auto">
+                            <canvas id="gtChart" style="max-height: 300px;"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- NON PELINDO Company Distribution Chart -->
+            <div class="bg-white rounded-lg shadow-lg p-6 card-hover mb-8">
+                <h3 class="text-xl font-bold text-gray-900 mb-4 text-center">Distribusi Agen ke BUP NON PELINDO</h3>
+                <div class="h-80">
+                    <canvas id="lokasiChart"></canvas>
+                </div>
+                <!-- Pagination -->
+                <div id="lokasiChartPagination" class="mt-4">
+                    <!-- Pagination controls will be inserted here -->
+                </div>
+            </div>
+
+            <!-- Ship Movement Types Table -->
+            <div class="bg-white rounded-lg shadow-lg p-6 card-hover">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Tabel Market Share Berdasarkan Pelabuhan</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full table-auto" id="movementTable">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pelabuhan</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PELINDO</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">%</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NON PELINDO</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">%</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="movementTableBody">
+                            <!-- Data will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Pagination -->
+                <div id="movementTablePagination" class="mt-4">
+                    <!-- Pagination controls will be inserted here -->
+                </div>
+            </div>
+
+        <!-- Port Calls by Destination Full Width -->
+        <div class="bg-white rounded-lg shadow-lg p-6 card-hover mb-8">
+            <h3 class="text-xl font-bold text-gray-900 mb-4">Market Share Berdasarkan Pelabuhan</h3>
+            <div class="h-80">
+                <canvas id="singgahChart" width="800" height="300"></canvas>
+            </div>
+        </div>
+    </main>
+    </div>
+
+    <!-- DASHBOARD 2 Tab Content -->
+    <div id="tab-content-dashboard2" class="tab-content hidden">
+        <main class="container mx-auto px-4 py-8">
+            <div class="bg-white rounded-lg shadow-lg p-8 text-center">
+                <h2 class="text-2xl font-bold text-gray-800 mb-4">DASHBOARD 2</h2>
+                <p class="text-gray-600">Dashboard 2 content will be implemented here.</p>
+            </div>
+        </main>
+    </div>
+
+    <!-- DATA TABEL Tab Content -->
+    <div id="tab-content-data-tabel" class="tab-content hidden">
+        <main class="container mx-auto px-4 py-8">
+            <!-- Table Container -->
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                <div class="p-4 border-b border-gray-200">
+                    <div class="flex justify-between items-center">
+                        <h2 class="text-lg font-semibold text-gray-800">Data Filters</h2>
+                        <button id="clearFilters" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm">
+                            Clear All Filters
+                        </button>
+                    </div>
+                </div>
+                <div id="loadingIndicator" class="bg-white rounded-lg shadow-lg p-8 mb-6" style="display: none;">
+                    <div class="flex items-center justify-center space-x-4">
+                        <div class="loading-spinner"></div>
+                        <span class="text-lg text-gray-600">Loading data...</span>
+                    </div>
+                </div>
+
+                <!-- Table Container -->
+                <div class="bg-white rounded-lg shadow-lg overflow-hidden" style="background: white !important;">
+                    <div class="overflow-x-auto" style="background: white !important;">
+                        <table id="dataTableTab" class="min-w-full divide-y divide-gray-200" style="table-layout: fixed;">
+                            <thead class="bg-gray-50">
+                                <tr id="tableHeaderTab">
+                                    <!-- Headers will be populated by JavaScript -->
+                                </tr>
+                                <tr id="filterHeaderTab" class="bg-gray-100 border-b border-gray-200">
+                                    <!-- Filters will be populated by JavaScript -->
+                                </tr>
+                            </thead>
+                            <tbody id="tableBodyTab" class="bg-white divide-y divide-gray-200" style="background: white !important;">
+                                <!-- Data rows will be populated by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Empty State -->
+                    <div id="emptyStateTab" class="p-8 text-center text-gray-500" style="display: none;">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <h3 class="mt-2 text-sm font-medium text-gray-900">No data found</h3>
+                        <p class="mt-1 text-sm text-gray-500">Try adjusting your search criteria.</p>
+                    </div>
+                </div>
+
+                <!-- Pagination -->
+                <div class="bg-white rounded-lg shadow-lg p-4 mt-6">
+                    <div class="flex items-center justify-between">
+                        <div class="text-sm text-gray-700">
+                            Showing <span id="showingStartTab">0</span> to <span id="showingEndTab">0</span> of <span id="totalEntriesTab">0</span> entries
+                        </div>
+                        <div class="flex space-x-1">
+                            <button id="prevBtnTab" class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+                            <div id="pageNumbersTab" class="flex space-x-1">
+                                <!-- Page numbers will be populated by JavaScript -->
+                            </div>
+                            <button id="nextBtnTab" class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
+                        <div class="flex items-center space-x-2">
+                            <label for="entriesPerPageTab" class="text-sm text-gray-700">Show:</label>
+                            <select id="entriesPerPageTab" class="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500">
+                                <option value="10">10</option>
+                                <option value="25">25</option>
+                                <option value="50">50</option>
+                                <option value="100">100</option>
+                            </select>
+                            <span class="text-sm text-gray-700">entries</span>
+                        </div>
+                        <button id="exportBtnTab" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm">
+                            Export CSV
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Market Share Table -->
+            <div class="bg-white rounded-lg shadow-lg p-6 card-hover mt-6">
+                <h3 class="text-xl font-bold text-gray-900 mb-4">Tabel Market Share Berdasarkan Pelabuhan</h3>
+                <div class="overflow-x-auto">
+                    <table class="min-w-full table-auto" id="movementTable">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pelabuhan</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">PELINDO</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">%</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">NON PELINDO</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">%</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200" id="movementTableBody">
+                            <!-- Data will be populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+                <!-- Pagination -->
+                <div id="movementTablePagination" class="mt-4">
+                    <!-- Pagination controls will be inserted here -->
+                </div>
+            </div>
+        </main>
+    </div>
+    <footer class="bg-gray-800 text-white py-8 mt-12">
+        <div class="container mx-auto px-4 text-center">
+            <p class="hidden">&copy; 2025 INAPORT Market Share Dashboard. Built with Tailwind CSS & Chart.js</p>
+        </div>
+    </footer>
+
+    <script>
+        // Tab switching functionality
+        document.addEventListener('DOMContentLoaded', function() {
+            const tabButtons = document.querySelectorAll('.tab-button');
+            const tabContents = document.querySelectorAll('.tab-content');
+
+            tabButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    const tabId = this.id.replace('tab-', 'tab-content-');
+
+                    // Remove active class from all buttons
+                    tabButtons.forEach(btn => {
+                        btn.classList.remove('active');
+                        btn.classList.remove('text-blue-600', 'border-blue-500');
+                        btn.classList.add('text-gray-500', 'border-transparent');
+                    });
+
+                    // Add active class to clicked button
+                    this.classList.add('active');
+                    this.classList.remove('text-gray-500', 'border-transparent');
+                    this.classList.add('text-blue-600', 'border-blue-500');
+
+                    // Hide all tab contents
+                    tabContents.forEach(content => {
+                        content.classList.add('hidden');
+                    });
+
+                    // Show selected tab content
+                    const selectedTab = document.getElementById(tabId);
+                    if (selectedTab) {
+                        selectedTab.classList.remove('hidden');
+                    }
+
+                    // Initialize table if DATA TABEL tab is selected
+                    if (tabId === 'tab-content-data-tabel') {
+                        setTimeout(() => {
+                            initDataTable();
+                        }, 100);
+                    }
+                });
+            });
+        });
+
+        // Table functionality for DATA TABEL tab
+        let allDataTab = [];
+        let filteredDataTab = [];
+        let currentPageTab = 1;
+        let entriesPerPageTab = 10;
+        let tableHeadersTab = [];
+        let dataTableInitialized = false;
+
+        function initDataTable() {
+            if (dataTableInitialized) return;
+            dataTableInitialized = true;
+
+            // Set up event listeners
+            setupTableEventListeners();
+
+            // Load data if not already loaded
+            if (csvData.length === 0) {
+                loadDataForTable();
+            } else {
+                processTableData();
+            }
+        }
+
+        function setupTableEventListeners() {
+            const entriesSelect = document.getElementById('entriesPerPageTab');
+            const prevBtn = document.getElementById('prevBtnTab');
+            const nextBtn = document.getElementById('nextBtnTab');
+            const clearBtn = document.getElementById('clearFilters');
+            const exportBtn = document.getElementById('exportBtnTab');
+
+            if (entriesSelect) entriesSelect.addEventListener('change', changeEntriesPerPageTab);
+            if (prevBtn) prevBtn.addEventListener('click', () => goToPageTab(currentPageTab - 1));
+            if (nextBtn) nextBtn.addEventListener('click', () => goToPageTab(currentPageTab + 1));
+            if (clearBtn) clearBtn.addEventListener('click', clearFiltersTab);
+            if (exportBtn) exportBtn.addEventListener('click', exportToCSVTab);
+        }
+
+        function loadDataForTable() {
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'block';
+            }
+
+            fetch('ina.csv')
+                .then(response => response.text())
+                .then(csvText => {
+                    const lines = csvText.split('\n');
+                    const headers = parseCSVLine(lines[0]).map(h => h.trim());
+                    tableHeadersTab = headers;
+
+                    allDataTab = lines.slice(1)
+                        .filter(line => line.trim())
+                        .map(line => {
+                            const values = parseCSVLine(line);
+                            const obj = {};
+                            headers.forEach((header, index) => {
+                                obj[header] = values[index]?.trim() || '';
+                            });
+                            return obj;
+                        });
+
+                    filteredDataTab = [...allDataTab];
+                    renderTable();
+                })
+                .catch(error => {
+                    console.error('Error loading table data:', error);
+                    // Use sample data
+                    tableHeadersTab = ["No PKK", "Nama Kapal", "Tipe", "Lokasi Sandar", "Kategori SPK", "GT", "Panjang", "Singgah", "Jenis Trayek"];
+                    allDataTab = [
+                        {"No PKK": "PKK001", "Nama Kapal": "Ship A", "Tipe": "Kedatangan", "Lokasi Sandar": "Terminal 1", "Kategori SPK": "PELINDO", "GT": "5000", "Panjang": "100", "Singgah": "Jakarta", "Jenis Trayek": "LINER"},
+                        {"No PKK": "PKK002", "Nama Kapal": "Ship B", "Tipe": "Keberangkatan", "Lokasi Sandar": "Terminal 2", "Kategori SPK": "NON PELINDO", "GT": "3000", "Panjang": "80", "Singgah": "Surabaya", "Jenis Trayek": "TRAMPER"}
+                    ];
+                    filteredDataTab = [...allDataTab];
+                    renderTable();
+                })
+                .finally(() => {
+                    if (loadingIndicator) {
+                        loadingIndicator.style.display = 'none';
+                    }
+                });
+        }
+
+        function processTableData() {
+            tableHeadersTab = Object.keys(csvData[0] || {});
+            allDataTab = [...csvData];
+            filteredDataTab = [...allDataTab];
+            renderTable();
+        }
+
+        function renderTable() {
+            // Render headers
+            const headerRow = document.getElementById('tableHeaderTab');
+            const filterRow = document.getElementById('filterHeaderTab');
+
+            headerRow.innerHTML = tableHeadersTab.map(header => `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">${header}</th>`).join('');
+
+            filterRow.innerHTML = tableHeadersTab.map(header => `
+                <th class="px-6 py-2">
+                    <input type="text" placeholder="Filter ${header}" class="w-full px-2 py-1 border border-gray-300 rounded text-xs" onkeyup="filterTable('${header}', this.value)">
+                </th>
+            `).join('');
+
+            // Render data
+            renderTablePage();
+        }
+
+        function filterTable(column, value) {
+            filteredDataTab = allDataTab.filter(row => {
+                if (!value) return true;
+                const cellValue = (row[column] || '').toString().toLowerCase();
+                return cellValue.includes(value.toLowerCase());
+            });
+            currentPageTab = 1;
+            renderTablePage();
+        }
+
+        function renderTablePage() {
+            const tbody = document.getElementById('tableBodyTab');
+            const startIndex = (currentPageTab - 1) * entriesPerPageTab;
+            const endIndex = startIndex + entriesPerPageTab;
+            const pageData = filteredDataTab.slice(startIndex, endIndex);
+
+            tbody.innerHTML = pageData.map(row => `
+                <tr class="hover:bg-gray-50">
+                    ${tableHeadersTab.map(header => `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">${row[header] || '-'}</td>`).join('')}
+                </tr>
+            `).join('');
+
+            updatePagination();
+            updateTableInfo();
+        }
+
+        function updatePagination() {
+            const totalPages = Math.ceil(filteredDataTab.length / entriesPerPageTab);
+            const pageNumbersDiv = document.getElementById('pageNumbersTab');
+
+            // Clear existing page numbers
+            pageNumbersDiv.innerHTML = '';
+
+            if (totalPages <= 1) {
+                document.getElementById('prevBtnTab').disabled = true;
+                document.getElementById('nextBtnTab').disabled = true;
+                return;
+            }
+
+            // Show limited page numbers with smart range
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPageTab - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.className = `px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 ${
+                    i === currentPageTab ? 'bg-blue-500 text-white border-blue-500' : ''
+                }`;
+                pageBtn.textContent = i;
+                pageBtn.addEventListener('click', () => goToPageTab(i));
+                pageNumbersDiv.appendChild(pageBtn);
+            }
+
+            // Update prev/next buttons
+            document.getElementById('prevBtnTab').disabled = currentPageTab === 1;
+            document.getElementById('nextBtnTab').disabled = currentPageTab === totalPages;
+        }
+
+        function updateTableInfo() {
+            const start = (currentPageTab - 1) * entriesPerPageTab + 1;
+            const end = Math.min(currentPageTab * entriesPerPageTab, filteredDataTab.length);
+
+            document.getElementById('showingStartTab').textContent = start;
+            document.getElementById('showingEndTab').textContent = end;
+            document.getElementById('totalEntriesTab').textContent = filteredDataTab.length;
+        }
+
+        function goToPageTab(page) {
+            currentPageTab = page;
+            renderTablePage();
+        }
+
+        function changeEntriesPerPageTab() {
+            entriesPerPageTab = parseInt(document.getElementById('entriesPerPageTab').value);
+            currentPageTab = 1;
+            renderTablePage();
+        }
+
+        function clearFiltersTab() {
+            document.querySelectorAll('#filterHeaderTab input').forEach(input => input.value = '');
+            filteredDataTab = [...allDataTab];
+            currentPageTab = 1;
+            renderTablePage();
+        }
+
+        function exportToCSVTab() {
+            const headers = tableHeadersTab.join(',');
+            const rows = filteredDataTab.map(row => tableHeadersTab.map(header => `"${row[header] || ''}"`).join(','));
+            const csvContent = [headers, ...rows].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'exported_data.csv';
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Make functions globally accessible for inline event handlers
+        window.filterTable = filterTable;
+        window.goToPageTab = goToPageTab;
+        window.changeEntriesPerPageTab = changeEntriesPerPageTab;
+        window.clearFiltersTab = clearFiltersTab;
+        window.exportToCSVTab = exportToCSVTab;
+    </script>
+
+    <script>
+        // Load and process CSV data
+        let csvData = [];
+        let charts = {}; // Store chart instances
+        let isDataLoaded = false;
+        let portFilterInitialized = false;
+        let lokasiChartCurrentPage = 1;
+        let lokasiChartItemsPerPage = 10;
+
+        // Cache configuration
+        const CACHE_KEY = 'inaport_csv_data';
+        const CACHE_TIMESTAMP_KEY = 'inaport_cache_timestamp';
+        const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
+
+        async function loadData() {
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            if (loadingIndicator) {
+                loadingIndicator.style.display = 'block';
+            }
+
+            try {
+                // Try to load from cache first
+                const cachedData = loadFromCache();
+                if (cachedData) {
+                    console.log('Loading data from cache, length:', cachedData.length);
+                    csvData = cachedData;
+                    console.log('csvData after cache load:', csvData.length);
+                    populatePortFilter();
+                    processData();
+                    isDataLoaded = true;
+                    return;
+                }
+
+                console.log('No valid cache found, fetching fresh data from CSV...');
+                const response = await fetch('ina.csv');
+                const csvText = await response.text();
+                console.log('CSV text length:', csvText.length);
+
+                // Parse CSV more efficiently
+                csvData = await parseCSV(csvText);
+                console.log('Parsed CSV data length:', csvData.length);
+
+                // Cache the parsed data
+                saveToCache(csvData);
+
+                populatePortFilter();
+                processData();
+                isDataLoaded = true;
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                // Use sample data for demo
+                csvData = [
+                    {"No PKK": "PKK001", "Nama Kapal": "Ship A", "Tipe": "Kedatangan", "Lokasi Sandar": "Terminal 1", "Kategori SPK": "PELINDO", "GT": "5000", "Panjang": "100", "Singgah": "Jakarta", "Jenis Trayek": "LINER"},
+                    {"No PKK": "PKK002", "Nama Kapal": "Ship B", "Tipe": "Keberangkatan", "Lokasi Sandar": "Terminal 2", "Kategori SPK": "NON PELINDO", "GT": "3000", "Panjang": "80", "Singgah": "Surabaya", "Jenis Trayek": "TRAMPER"},
+                    {"No PKK": "PKK003", "Nama Kapal": "Ship C", "Tipe": "KAPAL PINDAH", "Lokasi Sandar": "Terminal 1", "Kategori SPK": "PELINDO", "GT": "7000", "Panjang": "120", "Singgah": "Semarang", "Jenis Trayek": "LINER"}
+                ];
+                populatePortFilter();
+                processData();
+                isDataLoaded = true;
+            } finally {
+                if (loadingIndicator) {
+                    loadingIndicator.style.display = 'none';
+                }
+            }
+        }
+
+        async function parseCSV(csvText) {
+            const lines = csvText.split('\n');
+            const headers = parseCSVLine(lines[0]).map(h => h.trim());
+
+            const data = [];
+            const chunkSize = 1000;
+
+            for (let i = 1; i < lines.length; i += chunkSize) {
+                const chunk = lines.slice(i, i + chunkSize);
+                const chunkData = chunk
+                    .filter(line => line.trim())
+                    .map(line => {
+                        const values = parseCSVLine(line);
+                        const obj = {};
+                        headers.forEach((header, index) => {
+                            obj[header] = values[index]?.trim() || '';
+                        });
+                        return obj;
+                    });
+
+                data.push(...chunkData);
+
+                // Yield control to browser every few chunks to prevent blocking
+                if (i % (chunkSize * 5) === 0) {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                }
+            }
+
+            return data;
+        }
+
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            let i = 0;
+
+            while (i < line.length) {
+                const char = line[i];
+
+                if (char === '"') {
+                    if (inQuotes && line[i + 1] === '"') {
+                        // Escaped quote
+                        current += '"';
+                        i += 2;
+                    } else {
+                        // Toggle quote state
+                        inQuotes = !inQuotes;
+                        i++;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    // Field separator
+                    result.push(current);
+                    current = '';
+                    i++;
+                } else {
+                    current += char;
+                    i++;
+                }
+            }
+
+            // Add the last field
+            result.push(current);
+
+            return result;
+        }
+
+        function loadFromCache() {
+            try {
+                const timestamp = localStorage.getItem(CACHE_TIMESTAMP_KEY);
+                if (!timestamp) return null;
+
+                const cacheAge = Date.now() - parseInt(timestamp);
+                if (cacheAge > CACHE_DURATION) {
+                    console.log('Cache expired, fetching fresh data');
+                    localStorage.removeItem(CACHE_KEY);
+                    localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+                    return null;
+                }
+
+                const cachedData = localStorage.getItem(CACHE_KEY);
+                if (!cachedData) return null;
+
+                const parsedData = JSON.parse(cachedData);
+                // Check if cached data is valid (not empty and is an array)
+                if (!Array.isArray(parsedData) || parsedData.length === 0) {
+                    console.log('Cached data is empty or invalid, fetching fresh data');
+                    localStorage.removeItem(CACHE_KEY);
+                    localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+                    return null;
+                }
+
+                console.log('Using cached data, length:', parsedData.length);
+                return parsedData;
+            } catch (error) {
+                console.warn('Error loading from cache:', error);
+                // Clear corrupted cache
+                localStorage.removeItem(CACHE_KEY);
+                localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+                return null;
+            }
+        }
+
+        function saveToCache(data) {
+            try {
+                // Check if data is too large for localStorage (limit to ~2MB to be safe)
+                const dataString = JSON.stringify(data);
+                const dataSizeBytes = new Blob([dataString]).size;
+                const maxSizeBytes = 2 * 1024 * 1024; // 2MB limit
+
+                if (dataSizeBytes > maxSizeBytes) {
+                    console.log(`Data too large for caching (${(dataSizeBytes / 1024 / 1024).toFixed(2)}MB), skipping cache`);
+                    // Clear any existing cache since it's now invalid
+                    localStorage.removeItem(CACHE_KEY);
+                    localStorage.removeItem(CACHE_TIMESTAMP_KEY);
+                    return;
+                }
+
+                localStorage.setItem(CACHE_KEY, dataString);
+                localStorage.setItem(CACHE_TIMESTAMP_KEY, Date.now().toString());
+                console.log(`Data cached successfully (${(dataSizeBytes / 1024 / 1024).toFixed(2)}MB)`);
+            } catch (error) {
+                console.warn('Error saving to cache:', error);
+                // If storage is full or other error, try to clear old data
+                if (error.name === 'QuotaExceededError') {
+                    localStorage.clear();
+                }
+            }
+        }
+
+        function populatePortFilter() {
+            if (portFilterInitialized) return; // Prevent re-initialization
+
+            const portFilter = document.getElementById('portFilter');
+            const ports = new Set();
+
+            // Collect unique ports from Singgah column with validation
+            csvData.forEach(row => {
+                const singgah = row.Singgah && row.Singgah.trim();
+                if (singgah && isValidPortName(singgah)) {
+                    ports.add(singgah);
+                }
+            });
+
+            // Sort ports alphabetically
+            const sortedPorts = Array.from(ports).sort();
+
+            // Clear existing options except "All Ports"
+            portFilter.innerHTML = '<option value="">All Ports</option>';
+
+            // Add port options
+            sortedPorts.forEach(port => {
+                const option = document.createElement('option');
+                option.value = port;
+                option.textContent = port;
+                portFilter.appendChild(option);
+            });
+
+            // Add debounced event listener for filter changes
+            let debounceTimer;
+            portFilter.addEventListener('change', function() {
+                clearTimeout(debounceTimer);
+                debounceTimer = setTimeout(() => {
+                    processData();
+                }, 300); // 300ms debounce
+            });
+
+            portFilterInitialized = true;
+        }
+
+        function isValidPortName(name) {
+            // Filter out invalid entries
+            const invalidEntries = [
+                'Singgah', // CSV header
+                'LINER', 'TRAMPER', // Ship types
+                'PKKA', // Unknown codes
+                '', // Empty strings
+                '0', '1', '2', '3', '4', '5', '6', '7', '8', '9' // Single digits
+            ];
+
+            // Check if it's in invalid list
+            if (invalidEntries.includes(name)) {
+                return false;
+            }
+
+            // Check if it's a number (including decimals)
+            if (!isNaN(parseFloat(name)) && isFinite(name)) {
+                return false;
+            }
+
+            // Check if it contains only numbers and dots (like "171.95")
+            if (/^\d+(\.\d+)?$/.test(name)) {
+                return false;
+            }
+
+            // Check minimum length (ports should have meaningful names)
+            if (name.length < 3) {
+                return false;
+            }
+
+            // Check if it looks like a port name (contains letters, may contain spaces, dashes, numbers at end)
+            const portNamePattern = /^[A-Z\s\-]+(\s\d+)?$/i;
+            return portNamePattern.test(name) || name.includes('TANJUNG') || name.includes('FAK');
+        }
+
+        function processData() {
+            const selectedPort = document.getElementById('portFilter').value;
+            const processingIndicator = document.getElementById('processingIndicator');
+
+            // Show processing indicator
+            if (processingIndicator) {
+                processingIndicator.style.display = 'block';
+            }
+
+            // Use requestAnimationFrame for better performance
+            requestAnimationFrame(() => {
+                try {
+                    _processDataInternal(selectedPort);
+                } finally {
+                    if (processingIndicator) {
+                        processingIndicator.style.display = 'none';
+                    }
+                }
+            });
+        }
+
+        function _processDataInternal(selectedPort) {
+            // Get current year
+            const currentYear = new Date().getFullYear();
+
+            // Filter data to only include current year based on ETA column, specified types and SPK categories
+            let filteredData = csvData.filter(d => {
+                // Check if ETA exists and is from current year
+                const etaStr = d['ETA'] || '';
+                let recordYear = null;
+
+                if (etaStr) {
+                    try {
+                        const date = new Date(etaStr);
+                        if (!isNaN(date.getTime())) {
+                            recordYear = date.getFullYear();
+                        }
+                    } catch (e) {
+                        // Try to extract year from string format
+                        const yearMatch = etaStr.match(/(\d{1,2})[\/\-](\d{4})/);
+                        if (yearMatch) {
+                            recordYear = parseInt(yearMatch[2]);
+                        }
+                    }
+                }
+
+                // Only include current year data
+                if (recordYear !== currentYear) return false;
+
+                // Check type and SPK category
+                return (d.Tipe === 'Kedatangan' ||
+                        d.Tipe === 'Keberangkatan' ||
+                        d.Tipe === 'KAPAL PINDAH') &&
+                       (d['Kategori SPK'] === 'PELINDO' ||
+                        d['Kategori SPK'] === 'NON PELINDO');
+            });
+
+            // Apply port filter if a specific port is selected
+            if (selectedPort) {
+                filteredData = filteredData.filter(d => d.Singgah && d.Singgah.trim() === selectedPort);
+                document.getElementById('filterIndicator').textContent = `Filtered: ${selectedPort} • ${currentYear} • Kedatangan/Keberangkatan/KAPAL PINDAH • SPK PANDU services only`;
+            } else {
+                document.getElementById('filterIndicator').textContent = `Filtered: ${currentYear} • Kedatangan/Keberangkatan/KAPAL PINDAH • SPK PANDU services only`;
+            }
+
+            // Use filtered data for all processing
+            const dataToProcess = filteredData.length > 0 ? filteredData : csvData;
+
+            // Only destroy and recreate charts if data actually changed
+            const dataHash = dataToProcess.length + '_' + selectedPort;
+            if (window.lastDataHash !== dataHash) {
+                Object.values(charts).forEach(chart => {
+                    if (chart) chart.destroy();
+                });
+                charts = {};
+                window.lastDataHash = dataHash;
+            }
+
+            // Update metrics
+            document.getElementById('totalShips').textContent = dataToProcess.length.toLocaleString();
+
+            const pelindoCount = dataToProcess.filter(d => d['Kategori SPK'] === 'PELINDO').length;
+            const nonPelindoCount = dataToProcess.filter(d => d['Kategori SPK'] === 'NON PELINDO').length;
+            const pelindoPercentage = dataToProcess.length > 0 ? ((pelindoCount / dataToProcess.length) * 100).toFixed(1) : 0;
+            const nonPelindoPercentage = dataToProcess.length > 0 ? ((nonPelindoCount / dataToProcess.length) * 100).toFixed(1) : 0;
+            
+            // Update Total Ships card with breakdown
+            document.getElementById('pelindoShips').textContent = pelindoCount.toLocaleString();
+            document.getElementById('nonPelindoShips').textContent = nonPelindoCount.toLocaleString();
+            
+            // Update PELINDO Share card
+            document.getElementById('pelindoShare').textContent = `${pelindoPercentage}%`;
+            document.getElementById('pelindoPercentage').textContent = `${pelindoPercentage}%`;
+            document.getElementById('nonPelindoPercentage').textContent = `${nonPelindoPercentage}%`;
+
+            // Calculate GT breakdown
+            const validGT = dataToProcess.filter(d => d.GT && !isNaN(parseFloat(d.GT)));
+            const pelindoGT = validGT.filter(d => d['Kategori SPK'] === 'PELINDO');
+            const nonPelindoGT = validGT.filter(d => d['Kategori SPK'] === 'NON PELINDO');
+            
+            const totalGT = validGT.reduce((sum, d) => sum + parseFloat(d.GT), 0);
+            const totalGTpelindo = pelindoGT.reduce((sum, d) => sum + parseFloat(d.GT), 0);
+            const totalGTnonPelindo = nonPelindoGT.reduce((sum, d) => sum + parseFloat(d.GT), 0);
+            
+            document.getElementById('totalGT').textContent = totalGT.toLocaleString();
+            document.getElementById('totalGTpelindo').textContent = totalGTpelindo.toLocaleString();
+            document.getElementById('totalGTnonPelindo').textContent = totalGTnonPelindo.toLocaleString();
+
+            // Calculate terminal breakdown
+            const allTerminals = new Set(dataToProcess.map(d => d['Lokasi Sandar']).filter(Boolean));
+            const pelindoTerminals = new Set(dataToProcess.filter(d => d['Kategori SPK'] === 'PELINDO').map(d => d['Lokasi Sandar']).filter(Boolean));
+            const nonPelindoTerminals = new Set(dataToProcess.filter(d => d['Kategori SPK'] === 'NON PELINDO').map(d => d['Lokasi Sandar']).filter(Boolean));
+            
+            document.getElementById('activeTerminals').textContent = allTerminals.size.toLocaleString();
+            document.getElementById('pelindoTerminals').textContent = pelindoTerminals.size.toLocaleString();
+            document.getElementById('nonPelindoTerminals').textContent = nonPelindoTerminals.size.toLocaleString();
+
+            // Temporarily assign filtered data to csvData for chart functions
+            const originalCsvData = csvData;
+            window.originalCsvData = originalCsvData; // Store for table access
+            csvData = dataToProcess;
+
+            // Create charts and tables with lazy loading to prevent UI blocking
+            setTimeout(() => {
+                createMonthlySpkChart();
+                createLokasiChart(lokasiChartCurrentPage, lokasiChartItemsPerPage);
+            }, 0);
+
+            setTimeout(() => {
+                createTrayekChart();
+                createSinggahChart();
+                createGTChart();
+                createMovementTable(); // Populate the movement table with market share data
+            }, 100);
+
+            // Restore original data
+            setTimeout(() => {
+                csvData = originalCsvData;
+            }, 200);
+        }
+
+        function createSPKChart() {
+            const ctx = document.getElementById('spkChart').getContext('2d');
+
+            // Destroy existing chart if it exists
+            if (charts.spkChart) {
+                charts.spkChart.destroy();
+            }
+
+            const spkData = csvData.reduce((acc, d) => {
+                // Determine PELAYARAN based on No PKK
+                let pelayaran = 'Unknown';
+                const noPkk = d['No PKK'] || '';
+                if (noPkk.includes('LN')) {
+                    pelayaran = 'LUAR NEGERI';
+                } else if (noPkk.includes('DN')) {
+                    pelayaran = 'DALAM NEGERI';
+                }
+                
+                acc[pelayaran] = (acc[pelayaran] || 0) + 1;
+                return acc;
+            }, {});
+
+            // Create gradient colors for 3D effect
+            const gradients = [];
+            const colors = ['#A7C7E7', '#F4A261', '#E9C46A', '#2A9D8F'];
+            
+            colors.forEach(color => {
+                const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+                gradient.addColorStop(0, color);
+                gradient.addColorStop(0.7, color + 'CC'); // Add transparency
+                gradient.addColorStop(1, color + '88'); // More transparency for depth
+                gradients.push(gradient);
+            });
+
+            charts.spkChart = new Chart(ctx, {
+                type: 'pie',
+                data: {
+                    labels: Object.keys(spkData),
+                    datasets: [{
+                        data: Object.values(spkData),
+                        backgroundColor: gradients,
+                        borderWidth: 4,
+                        borderColor: '#ffffff',
+                        hoverBorderWidth: 6,
+                        hoverBorderColor: '#ffffff',
+                        hoverOffset: 15,
+                        offset: [0, 0, 10, 0], // Offset some slices for 3D effect
+                        shadowOffsetX: 3,
+                        shadowOffsetY: 3,
+                        shadowBlur: 10,
+                        shadowColor: 'rgba(0, 0, 0, 0.3)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        animateScale: true,
+                        animateRotate: true,
+                        duration: 2000,
+                        easing: 'easeOutBounce'
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 25,
+                                font: {
+                                    size: 13,
+                                    weight: 'bold',
+                                    family: 'Arial, sans-serif'
+                                },
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+                                    
+                                    return data.labels.map((label, index) => {
+                                        const value = data.datasets[0].data[index];
+                                        const percentage = ((value / total) * 100).toFixed(1);
+                                        
+                                        return {
+                                            text: `${label}: ${value.toLocaleString()} (${percentage}%)`,
+                                            fillStyle: colors[index], // Use original colors for legend
+                                            strokeStyle: '#ffffff',
+                                            lineWidth: 2,
+                                            hidden: false,
+                                            index: index,
+                                            pointStyle: 'rectRounded'
+                                        };
+                                    });
+                                }
+                            }
+                        },
+                        datalabels: {
+                            color: '#ffffff',
+                            font: {
+                                weight: 'bold',
+                                size: 16,
+                                family: 'Arial, sans-serif'
+                            },
+                            textShadow: '2px 2px 4px rgba(0,0,0,0.5)',
+                            formatter: function(value, context) {
+                                const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                const percentage = ((value / total) * 100).toFixed(1);
+                                return percentage + '%';
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: '#ffffff',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            displayColors: true,
+                            callbacks: {
+                                label: function(context) {
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const value = context.parsed;
+                                    const percentage = ((value / total) * 100).toFixed(1);
+                                    return `${context.label}: ${value.toLocaleString()} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    },
+                    onHover: (event, activeElements) => {
+                        event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
+                    }
+                }
+            });
+        }
+
+        function createMonthlySpkChart() {
+            const ctx = document.getElementById('monthlySpkChart').getContext('2d');
+
+            // Group data by month and Kategori SPK using ETA column
+            const monthlyData = csvData.reduce((acc, d) => {
+                // Extract month from ETA column
+                const etaStr = d['ETA'] || '';
+                let month = 'Unknown';
+
+                if (etaStr) {
+                    try {
+                        const date = new Date(etaStr);
+                        if (!isNaN(date.getTime())) {
+                            month = date.toLocaleDateString('id-ID', { month: 'long' });
+                        }
+                    } catch (e) {
+                        // If date parsing fails, try to extract month from string
+                        const monthMatch = etaStr.match(/(\d{1,2})[\/\-](\d{4})/);
+                        if (monthMatch) {
+                            const monthNum = parseInt(monthMatch[1]);
+                            const monthNames = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                                              'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+                            month = monthNames[monthNum - 1];
+                        }
+                    }
+                }
+
+                const kategori = d['Kategori SPK'];
+                if (!kategori || (kategori !== 'PELINDO' && kategori !== 'NON PELINDO')) return acc;
+
+                if (!acc[month]) {
+                    acc[month] = { PELINDO: 0, 'NON PELINDO': 0 };
+                }
+
+                acc[month][kategori]++;
+                return acc;
+            }, {});
+
+            // Sort months chronologically (January to December)
+            const monthOrder = ['Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
+                              'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember'];
+            const sortedMonths = Object.keys(monthlyData).sort((a, b) => {
+                const indexA = monthOrder.indexOf(a);
+                const indexB = monthOrder.indexOf(b);
+                return indexA - indexB;
+            });
+
+            const pelindoData = sortedMonths.map(month => monthlyData[month].PELINDO);
+            const nonPelindoData = sortedMonths.map(month => monthlyData[month]['NON PELINDO']);
+
+            charts.monthlySpkChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedMonths,
+                    datasets: [{
+                        label: 'PELINDO',
+                        data: pelindoData,
+                        backgroundColor: '#10B981',
+                        borderColor: '#059669',
+                        borderWidth: 2,
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    }, {
+                        label: 'NON PELINDO',
+                        data: nonPelindoData,
+                        backgroundColor: '#EF4444',
+                        borderColor: '#DC2626',
+                        borderWidth: 2,
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 2000,
+                        easing: 'easeOutBounce'
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            color: '#333',
+                            font: {
+                                weight: 'bold',
+                                size: 11
+                            },
+                            formatter: function(value) {
+                                return value.toLocaleString();
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: '#ffffff',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: ${context.parsed.y.toLocaleString()} kapal`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    onHover: (event, activeElements) => {
+                        event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
+                    }
+                }
+            });
+        }
+
+        function createMovementTable() {
+            console.log('createMovementTable called, csvData length:', csvData.length);
+            const tbody = document.getElementById('movementTableBody');
+            console.log('tbody element:', tbody);
+
+            // Use original full dataset for market share table, not filtered data
+            const dataForTable = window.originalCsvData || csvData;
+            console.log('dataForTable length:', dataForTable.length);
+
+            // Group data by Singgah and Kategori SPK, only counting PELINDO and NON PELINDO
+            const movementData = dataForTable.reduce((acc, d) => {
+                const singgah = d.Singgah?.trim();
+                const kategori = d['Kategori SPK'];
+
+                // Only process if Kategori SPK is PELINDO or NON PELINDO (allow empty Singgah for now)
+                if (kategori !== 'PELINDO' && kategori !== 'NON PELINDO') return acc;
+
+                // Use "Unknown" for empty Singgah
+                const portName = singgah || 'Unknown';
+
+                if (!acc[portName]) {
+                    acc[portName] = { PELINDO: 0, 'NON PELINDO': 0, total: 0 };
+                }
+
+                acc[portName][kategori]++;
+                acc[portName].total++;
+
+                return acc;
+            }, {});
+
+            // Sort by NON PELINDO count descending (show all data)
+            const sortedData = Object.entries(movementData)
+                .sort((a, b) => b[1]['NON PELINDO'] - a[1]['NON PELINDO']);
+
+            console.log('movementData processed:', Object.keys(movementData).length, 'ports');
+            console.log('sortedData length:', sortedData.length);
+
+            // Store data globally for paging
+            window.movementTableData = sortedData;
+            window.currentPage = 1;
+            window.itemsPerPage = 10;
+
+            renderMovementTablePage();
+        }
+
+        function renderMovementTablePage() {
+            console.log('renderMovementTablePage called');
+            const tbody = document.getElementById('movementTableBody');
+            const sortedData = window.movementTableData;
+            console.log('sortedData in render:', sortedData ? sortedData.length : 'null');
+            const currentPage = window.currentPage;
+            const itemsPerPage = window.itemsPerPage;
+
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const pageData = sortedData.slice(startIndex, endIndex);
+
+            tbody.innerHTML = pageData.map(([singgah, counts]) => {
+                const pelindoPercent = counts.total > 0 ? ((counts.PELINDO / counts.total) * 100).toFixed(1) : 0;
+                const nonPelindoPercent = counts.total > 0 ? ((counts['NON PELINDO'] / counts.total) * 100).toFixed(1) : 0;
+                
+                return `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 text-sm font-medium text-gray-900">${singgah}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800">
+                            ${counts.PELINDO.toLocaleString()}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-900">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-green-200 text-green-900">
+                            ${pelindoPercent}%
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-900">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
+                            ${counts['NON PELINDO'].toLocaleString()}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-900">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-gray-200 text-gray-900">
+                            ${nonPelindoPercent}%
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm font-bold text-gray-900">${counts.total.toLocaleString()}</td>
+                </tr>
+            `}).join('');
+
+            renderMovementTablePagination();
+        }
+
+        function renderMovementTablePagination() {
+            const sortedData = window.movementTableData;
+            const currentPage = window.currentPage;
+            const itemsPerPage = window.itemsPerPage;
+            const totalPages = Math.ceil(sortedData.length / itemsPerPage);
+
+            const paginationContainer = document.getElementById('movementTablePagination');
+            if (!paginationContainer) return;
+
+            let paginationHTML = '<div class="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6">';
+
+            // Previous button
+            paginationHTML += `<div class="flex-1 flex justify-between sm:hidden">
+                <button onclick="changeMovementPage(${currentPage - 1})" 
+                        ${currentPage === 1 ? 'disabled class="relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-400 bg-gray-200 border border-gray-300 cursor-not-allowed rounded-md"' : 'class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"'}
+                        >Previous</button>
+                <button onclick="changeMovementPage(${currentPage + 1})" 
+                        ${currentPage === totalPages ? 'disabled class="ml-3 relative inline-flex items-center px-4 py-2 text-sm font-medium text-gray-400 bg-gray-200 border border-gray-300 cursor-not-allowed rounded-md"' : 'class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"'}
+                        >Next</button>
+            </div>`;
+
+            // Desktop pagination
+            paginationHTML += '<div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">';
+
+            // Showing info
+            const startItem = (currentPage - 1) * itemsPerPage + 1;
+            const endItem = Math.min(currentPage * itemsPerPage, sortedData.length);
+            paginationHTML += `<div>
+                <p class="text-sm text-gray-700">
+                    Showing <span class="font-medium">${startItem}</span> to <span class="font-medium">${endItem}</span> of <span class="font-medium">${sortedData.length}</span> results
+                </p>
+            </div>`;
+
+            // Page navigation
+            paginationHTML += '<div><nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">';
+
+            // Previous button
+            paginationHTML += `<button onclick="changeMovementPage(${currentPage - 1})" 
+                    ${currentPage === 1 ? 'class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-gray-200 text-sm font-medium text-gray-400 cursor-not-allowed"' : 'class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"'}
+                    ><svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd"/></svg></button>`;
+
+            // Page numbers
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, currentPage + 2);
+
+            if (startPage > 1) {
+                paginationHTML += `<button onclick="changeMovementPage(1)" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">1</button>`;
+                if (startPage > 2) {
+                    paginationHTML += '<span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>';
+                }
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                paginationHTML += `<button onclick="changeMovementPage(${i})" 
+                        ${i === currentPage ? 'class="z-10 bg-blue-50 border-blue-500 text-blue-600 relative inline-flex items-center px-4 py-2 border text-sm font-medium"' : 'class="bg-white border-gray-300 text-gray-500 hover:bg-gray-50 relative inline-flex items-center px-4 py-2 border text-sm font-medium"'}
+                        >${i}</button>`;
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    paginationHTML += '<span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>';
+                }
+                paginationHTML += `<button onclick="changeMovementPage(${totalPages})" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">${totalPages}</button>`;
+            }
+
+            // Next button
+            paginationHTML += `<button onclick="changeMovementPage(${currentPage + 1})" 
+                    ${currentPage === totalPages ? 'class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-gray-200 text-sm font-medium text-gray-400 cursor-not-allowed"' : 'class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50"'}
+                    ><svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"/></svg></button>`;
+
+            paginationHTML += '</nav></div></div></div>';
+
+            paginationContainer.innerHTML = paginationHTML;
+        }
+
+        function changeMovementPage(page) {
+            const totalPages = Math.ceil(window.movementTableData.length / window.itemsPerPage);
+            if (page >= 1 && page <= totalPages) {
+                window.currentPage = page;
+                renderMovementTablePage();
+            }
+        }
+
+        function createLokasiChart(page = 1, itemsPerPage = 10) {
+            const ctx = document.getElementById('lokasiChart').getContext('2d');
+
+            // Destroy existing chart if it exists
+            if (charts.lokasiChart) {
+                charts.lokasiChart.destroy();
+            }
+
+            // Filter data for NON PELINDO only and group by Nama Perusahaan
+            const perusahaanData = {};
+            const perusahaanDestinations = {};
+            
+            csvData.forEach(d => {
+                const kategori = d['Kategori SPK'];
+                const perusahaan = d['Nama Perusahaan'] || 'Unknown';
+                const singgah = d.Singgah || 'Unknown';
+                
+                // Only count NON PELINDO data
+                if (kategori === 'NON PELINDO') {
+                    // Count total services per company
+                    perusahaanData[perusahaan] = (perusahaanData[perusahaan] || 0) + 1;
+                    
+                    // Track destinations per company
+                    if (!perusahaanDestinations[perusahaan]) {
+                        perusahaanDestinations[perusahaan] = {};
+                    }
+                    perusahaanDestinations[perusahaan][singgah] = (perusahaanDestinations[perusahaan][singgah] || 0) + 1;
+                }
+            });
+
+            // Sort all companies by service count
+            const sortedAll = Object.entries(perusahaanData).sort((a, b) => b[1] - a[1]);
+            
+            // Calculate pagination
+            const totalItems = sortedAll.length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            const startIndex = (page - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            
+            // Get current page data
+            const currentPageData = sortedAll.slice(startIndex, endIndex);
+
+            charts.lokasiChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: currentPageData.map(d => d[0]),
+                    datasets: [{
+                        label: 'NON PELINDO Services',
+                        data: currentPageData.map(d => d[1]),
+                        backgroundColor: '#EF4444',
+                        borderColor: '#DC2626',
+                        borderWidth: 2,
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    animation: {
+                        duration: 2000,
+                        easing: 'easeOutBounce'
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'right',
+                            color: '#333',
+                            font: {
+                                weight: 'bold',
+                                size: 11
+                            },
+                            formatter: function(value) {
+                                return value.toLocaleString();
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: '#EF4444',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            displayColors: true,
+                            callbacks: {
+                                title: function(context) {
+                                    return context[0].label;
+                                },
+                                label: function(context) {
+                                    const company = context.label;
+                                    const totalServices = context.parsed.x;
+                                    
+                                    // Get top destinations for this company
+                                    const destinations = perusahaanDestinations[company];
+                                    const topDestinations = Object.entries(destinations)
+                                        .sort((a, b) => b[1] - a[1])
+                                        .slice(0, 3);
+                                    
+                                    let tooltipText = `Total Services: ${totalServices}`;
+                                    if (topDestinations.length > 0) {
+                                        tooltipText += '\n\nTop Destinations:';
+                                        topDestinations.forEach(([dest, count], index) => {
+                                            tooltipText += `\n${index + 1}. ${dest}: ${count} services`;
+                                        });
+                                    }
+                                    
+                                    return tooltipText;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        },
+                        y: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                maxTicksLimit: 10,
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        }
+                    },
+                    onHover: (event, activeElements) => {
+                        event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
+                    }
+                }
+            });
+
+            // Render pagination controls
+            renderLokasiChartPagination(page, totalPages, itemsPerPage, totalItems);
+        }
+
+        function renderLokasiChartPagination(currentPage, totalPages, itemsPerPage, totalItems) {
+            const paginationContainer = document.getElementById('lokasiChartPagination');
+            if (!paginationContainer) return;
+
+            let paginationHTML = '<div class="flex items-center justify-between px-4 py-3 bg-white border-t border-gray-200 sm:px-6">';
+
+            // Mobile pagination
+            paginationHTML += `<div class="flex-1 flex justify-between sm:hidden">
+                <button onclick="changeLokasiChartPage(${currentPage - 1}, ${itemsPerPage})" 
+                        class="relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 ${currentPage <= 1 ? 'opacity-50 cursor-not-allowed' : ''}" 
+                        ${currentPage <= 1 ? 'disabled' : ''}>
+                    Previous
+                </button>
+                <button onclick="changeLokasiChartPage(${currentPage + 1}, ${itemsPerPage})" 
+                        class="ml-3 relative inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 ${currentPage >= totalPages ? 'opacity-50 cursor-not-allowed' : ''}" 
+                        ${currentPage >= totalPages ? 'disabled' : ''}>
+                    Next
+                </button>
+            </div>`;
+
+            // Desktop pagination
+            paginationHTML += '<div class="hidden sm:flex-1 sm:flex sm:items-center sm:justify-between">';
+            paginationHTML += `<div>
+                <p class="text-sm text-gray-700">
+                    Showing <span class="font-medium">${Math.min((currentPage - 1) * itemsPerPage + 1, totalItems)}</span>
+                    to <span class="font-medium">${Math.min(currentPage * itemsPerPage, totalItems)}</span>
+                    of <span class="font-medium">${totalItems}</span> companies
+                </p>
+                <div class="mt-1">
+                    <label for="lokasiItemsPerPage" class="text-xs text-gray-600">Show:</label>
+                    <select id="lokasiItemsPerPage" onchange="changeLokasiItemsPerPage(this.value)" class="ml-1 px-2 py-1 border border-gray-300 rounded text-xs">
+                        <option value="5" ${itemsPerPage == 5 ? 'selected' : ''}>5</option>
+                        <option value="10" ${itemsPerPage == 10 ? 'selected' : ''}>10</option>
+                        <option value="15" ${itemsPerPage == 15 ? 'selected' : ''}>15</option>
+                        <option value="20" ${itemsPerPage == 20 ? 'selected' : ''}>20</option>
+                    </select>
+                </div>
+            </div>`;
+            paginationHTML += '<div><nav class="relative z-0 inline-flex rounded-md shadow-sm -space-x-px" aria-label="Pagination">';
+
+            // Previous button
+            paginationHTML += `<button onclick="changeLokasiChartPage(${currentPage - 1}, ${itemsPerPage})" 
+                    class="relative inline-flex items-center px-2 py-2 rounded-l-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${currentPage <= 1 ? 'opacity-50 cursor-not-allowed' : ''}" 
+                    ${currentPage <= 1 ? 'disabled' : ''}>
+                <span class="sr-only">Previous</span>
+                <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M12.707 5.293a1 1 0 010 1.414L9.414 10l3.293 3.293a1 1 0 01-1.414 1.414l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 0z" clip-rule="evenodd" />
+                </svg>
+            </button>`;
+
+            // Page numbers
+            const startPage = Math.max(1, currentPage - 2);
+            const endPage = Math.min(totalPages, currentPage + 2);
+
+            if (startPage > 1) {
+                paginationHTML += `<button onclick="changeLokasiChartPage(1, ${itemsPerPage})" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">1</button>`;
+                if (startPage > 2) {
+                    paginationHTML += '<span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>';
+                }
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                paginationHTML += `<button onclick="changeLokasiChartPage(${i}, ${itemsPerPage})" 
+                        class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium ${i === currentPage ? 'bg-blue-50 border-blue-500 text-blue-600' : 'text-gray-700 hover:bg-gray-50'}">${i}</button>`;
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) {
+                    paginationHTML += '<span class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700">...</span>';
+                }
+                paginationHTML += `<button onclick="changeLokasiChartPage(${totalPages}, ${itemsPerPage})" class="relative inline-flex items-center px-4 py-2 border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">${totalPages}</button>`;
+            }
+
+            // Next button
+            paginationHTML += `<button onclick="changeLokasiChartPage(${currentPage + 1}, ${itemsPerPage})" 
+                    class="relative inline-flex items-center px-2 py-2 rounded-r-md border border-gray-300 bg-white text-sm font-medium text-gray-500 hover:bg-gray-50 ${currentPage >= totalPages ? 'opacity-50 cursor-not-allowed' : ''}" 
+                    ${currentPage >= totalPages ? 'disabled' : ''}>
+                <span class="sr-only">Next</span>
+                <svg class="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                </svg>
+            </button>`;
+
+            paginationHTML += '</nav></div></div></div>';
+
+            paginationContainer.innerHTML = paginationHTML;
+        }
+
+        function changeLokasiItemsPerPage(newItemsPerPage) {
+            lokasiChartItemsPerPage = parseInt(newItemsPerPage);
+            lokasiChartCurrentPage = 1; // Reset to first page
+            createLokasiChart(lokasiChartCurrentPage, lokasiChartItemsPerPage);
+        }
+
+        function changeLokasiChartPage(page, itemsPerPage) {
+            // We need to recalculate the data to get totalItems
+            const perusahaanData = {};
+            csvData.forEach(d => {
+                const kategori = d['Kategori SPK'];
+                const perusahaan = d['Nama Perusahaan'] || 'Unknown';
+                
+                if (kategori === 'NON PELINDO') {
+                    perusahaanData[perusahaan] = (perusahaanData[perusahaan] || 0) + 1;
+                }
+            });
+            
+            const totalItems = Object.keys(perusahaanData).length;
+            const totalPages = Math.ceil(totalItems / itemsPerPage);
+            if (page >= 1 && page <= totalPages) {
+                lokasiChartCurrentPage = page;
+                lokasiChartItemsPerPage = itemsPerPage;
+                createLokasiChart(page, itemsPerPage);
+            }
+        }
+
+        function changeLokasiItemsPerPage(newItemsPerPage) {
+            lokasiChartItemsPerPage = parseInt(newItemsPerPage);
+            lokasiChartCurrentPage = 1; // Reset to first page
+            createLokasiChart(lokasiChartCurrentPage, lokasiChartItemsPerPage);
+        }
+
+        function createTrayekChart() {
+            const ctx = document.getElementById('trayekChart').getContext('2d');
+
+            // Destroy existing chart if it exists
+            if (charts.trayekChart) {
+                charts.trayekChart.destroy();
+            }
+
+            // Filter data for PELINDO only and group by PELAYARAN
+            const trayekData = csvData
+                .filter(d => d['Kategori SPK'] === 'PELINDO')
+                .reduce((acc, d) => {
+                    // Determine PELAYARAN based on No PKK
+                    let pelayaran = 'Unknown';
+                    const noPkk = d['No PKK'] || '';
+                    if (noPkk.includes('LN')) {
+                        pelayaran = 'LUAR NEGERI';
+                    } else if (noPkk.includes('DN')) {
+                        pelayaran = 'DALAM NEGERI';
+                    }
+                    
+                    acc[pelayaran] = (acc[pelayaran] || 0) + 1;
+                    return acc;
+                }, {});
+
+            // Calculate total for percentage calculation
+            const totalTrayek = Object.values(trayekData).reduce((sum, val) => sum + val, 0);
+
+            charts.trayekChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(trayekData),
+                    datasets: [{
+                        data: Object.values(trayekData),
+                        backgroundColor: ['#A7C7E7', '#F4A261', '#E9C46A', '#2A9D8F', '#E76F51'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    if (data.labels.length && data.datasets.length) {
+                                        return data.labels.map((label, i) => {
+                                            const value = data.datasets[0].data[i];
+                                            const percentage = ((value / totalTrayek) * 100).toFixed(1);
+                                            return {
+                                                text: `${label}: ${value.toLocaleString()} (${percentage}%)`,
+                                                fillStyle: data.datasets[0].backgroundColor[i],
+                                                strokeStyle: data.datasets[0].borderColor,
+                                                lineWidth: data.datasets[0].borderWidth,
+                                                hidden: false,
+                                                index: i
+                                            };
+                                        });
+                                    }
+                                    return [];
+                                },
+                                font: {
+                                    size: 11
+                                },
+                                padding: 10
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const percentage = ((value / totalTrayek) * 100).toFixed(1);
+                                    return `${context.label}: ${value.toLocaleString()} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createSinggahChart() {
+            const ctx = document.getElementById('singgahChart').getContext('2d');
+
+            // Destroy existing chart if it exists
+            if (charts.singgahChart) {
+                charts.singgahChart.destroy();
+            }
+
+            // Use original data for market share chart (not filtered by year)
+            const dataToUse = window.originalCsvData || csvData;
+
+            // Group data by Singgah and Kategori SPK
+            const singgahData = dataToUse.reduce((acc, d) => {
+                const kategori = d['Kategori SPK'];
+                const singgah = d.Singgah || 'Unknown';
+                
+                // Only count PELINDO and NON PELINDO data
+                if (kategori === 'PELINDO' || kategori === 'NON PELINDO') {
+                    if (!acc[singgah]) {
+                        acc[singgah] = { PELINDO: 0, 'NON PELINDO': 0 };
+                    }
+                    acc[singgah][kategori]++;
+                }
+                return acc;
+            }, {});
+
+            // Take top 10 destinations by total calls
+            const sorted = Object.entries(singgahData)
+                .map(([singgah, data]) => ({
+                    singgah,
+                    total: data.PELINDO + data['NON PELINDO'],
+                    ...data
+                }))
+                .sort((a, b) => b.total - a.total)
+                .slice(0, 10);
+
+            charts.singgahChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sorted.map(d => d.singgah),
+                    datasets: [{
+                        label: 'PELINDO',
+                        data: sorted.map(d => d.PELINDO),
+                        backgroundColor: '#10B981',
+                        borderColor: '#059669',
+                        borderWidth: 2,
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    }, {
+                        label: 'NON PELINDO',
+                        data: sorted.map(d => d['NON PELINDO']),
+                        backgroundColor: '#EF4444',
+                        borderColor: '#DC2626',
+                        borderWidth: 2,
+                        borderRadius: 4,
+                        borderSkipped: false,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: {
+                        duration: 2000,
+                        easing: 'easeOutBounce'
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top',
+                            labels: {
+                                usePointStyle: true,
+                                padding: 20,
+                                font: {
+                                    size: 12,
+                                    weight: 'bold'
+                                }
+                            }
+                        },
+                        datalabels: {
+                            anchor: 'end',
+                            align: 'top',
+                            color: '#333',
+                            font: {
+                                weight: 'bold',
+                                size: 11
+                            },
+                            formatter: function(value) {
+                                return value.toLocaleString();
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#ffffff',
+                            borderColor: '#ffffff',
+                            borderWidth: 1,
+                            cornerRadius: 8,
+                            callbacks: {
+                                label: function(context) {
+                                    return `${context.dataset.label}: ${context.parsed.y.toLocaleString()} calls`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: {
+                                display: false
+                            },
+                            ticks: {
+                                maxRotation: 45,
+                                minRotation: 45,
+                                font: {
+                                    size: 11
+                                }
+                            }
+                        },
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0, 0, 0, 0.1)'
+                            },
+                            ticks: {
+                                callback: function(value) {
+                                    return value.toLocaleString();
+                                }
+                            }
+                        }
+                    },
+                    onHover: (event, activeElements) => {
+                        event.native.target.style.cursor = activeElements.length > 0 ? 'pointer' : 'default';
+                    }
+                }
+            });
+        }
+
+        function createGTChart() {
+            const ctx = document.getElementById('gtChart').getContext('2d');
+
+            // Destroy existing chart if it exists
+            if (charts.gtChart) {
+                charts.gtChart.destroy();
+            }
+
+            // Filter data for NON PELINDO only and group by PELAYARAN
+            const gtRanges = csvData
+                .filter(d => d['Kategori SPK'] === 'NON PELINDO')
+                .reduce((acc, d) => {
+                    // Determine PELAYARAN based on No PKK
+                    let pelayaran = 'Unknown';
+                    const noPkk = d['No PKK'] || '';
+                    if (noPkk.includes('LN')) {
+                        pelayaran = 'LUAR NEGERI';
+                    } else if (noPkk.includes('DN')) {
+                        pelayaran = 'DALAM NEGERI';
+                    }
+                    
+                    acc[pelayaran] = (acc[pelayaran] || 0) + 1;
+                    return acc;
+                }, {});
+
+            // compute radius from canvas to match other charts
+            const gtCanvasSize = Math.min(ctx.canvas.clientWidth || ctx.canvas.width, ctx.canvas.clientHeight || ctx.canvas.height);
+            const gtRadius = Math.floor(gtCanvasSize / 2) - 6;
+            const gtCutout = Math.floor(gtRadius * 0.30);
+
+            // Calculate total for percentage calculation
+            const totalGT = Object.values(gtRanges).reduce((sum, val) => sum + val, 0);
+
+            charts.gtChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(gtRanges),
+                    datasets: [{
+                        data: Object.values(gtRanges),
+                        backgroundColor: ['#A7C7E7', '#F4A261', '#E9C46A', '#2A9D8F'],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                generateLabels: function(chart) {
+                                    const data = chart.data;
+                                    if (data.labels.length && data.datasets.length) {
+                                        return data.labels.map((label, i) => {
+                                            const value = data.datasets[0].data[i];
+                                            const percentage = ((value / totalGT) * 100).toFixed(1);
+                                            return {
+                                                text: `${label}: ${value.toLocaleString()} (${percentage}%)`,
+                                                fillStyle: data.datasets[0].backgroundColor[i],
+                                                strokeStyle: data.datasets[0].borderColor,
+                                                lineWidth: data.datasets[0].borderWidth,
+                                                hidden: false,
+                                                index: i
+                                            };
+                                        });
+                                    }
+                                    return [];
+                                },
+                                font: {
+                                    size: 11
+                                },
+                                padding: 10
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const value = context.parsed;
+                                    const percentage = ((value / totalGT) * 100).toFixed(1);
+                                    return `${context.label}: ${value.toLocaleString()} (${percentage}%)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function populateTableWithData(data) {
+            const tbody = document.getElementById('movementTableBody');
+            const recentData = data.slice(0, 10); // Show first 10 rows
+
+            tbody.innerHTML = recentData.map(row => {
+                // Determine PELAYARAN based on No PKK
+                let pelayaran = '-';
+                const noPkk = row['No PKK'] || '';
+                if (noPkk.includes('LN')) {
+                    pelayaran = 'LUAR NEGERI';
+                } else if (noPkk.includes('DN')) {
+                    pelayaran = 'DALAM NEGERI';
+                }
+
+                return `
+                <tr class="hover:bg-gray-50">
+                    <td class="px-4 py-3 text-sm text-gray-900">${row['No PKK'] || '-'}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">${row['Nama Kapal'] || '-'}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full ${
+                            row.Tipe === 'Kedatangan' ? 'bg-green-100 text-green-800' :
+                            row.Tipe === 'Keberangkatan' ? 'bg-blue-100 text-blue-800' :
+                            'bg-purple-100 text-purple-800'
+                        }">
+                            ${row.Tipe || '-'}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-900">${row['Lokasi Sandar'] || '-'}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full ${
+                            row['Kategori SPK'] === 'PELINDO' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }">
+                            ${row['Kategori SPK'] || '-'}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-900">${row.GT ? parseInt(row.GT).toLocaleString() : '-'}</td>
+                    <td class="px-4 py-3 text-sm text-gray-900">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full ${
+                            pelayaran === 'LUAR NEGERI' ? 'bg-blue-100 text-blue-800' : 
+                            pelayaran === 'DALAM NEGERI' ? 'bg-green-100 text-green-800' :
+                            'bg-gray-100 text-gray-800'
+                        }">
+                            ${pelayaran}
+                        </span>
+                    </td>
+                </tr>`;
+            }).join('');
+        }
+
+        // Make functions globally accessible for pagination
+        window.changeMovementPage = changeMovementPage;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', loadData);
+    </script>
+</body>
+</html>

@@ -63,7 +63,8 @@ def get_all_ports() -> List[str]:
         "IDGRE", "IDJKT", "IDSUB", "IDPNK", "IDSRG", "IDMES", "IDBPN", "IDMAK", "IDPLM", "IDBJM",
         "IDTGR", "IDBTH", "IDBLW", "IDKOE", "IDAMI", "IDTRK", "IDBDO", "IDPBL", "IDTTE", "IDBTJ",
         "IDKDI", "IDKBR", "IDPDG", "IDUPG", "IDMDC", "IDBJW", "IDTKG", "IDBKS", "IDSWQ", "IDTIM",
-        "IDAMQ", "IDFKQ", "IDNAH", "IDMEQ", "IDWMU", "IDJBR", "IDSIQ", "IDTJQ", "IDGTO", "IDKAU"
+        "IDAMQ", "IDFKQ", "IDNAH", "IDMEQ", "IDWMU", "IDJBR", "IDSIQ", "IDTJQ", "IDGTO", "IDKAU","IDKBU","IDDUM","IDBTN",
+        "IDCXP", "IDBJU", "IDCEB", "IDLBR", "IDKUM", "IDSMQ", "IDSTU"
     ]
 
 def scrape_pkk_list(kode_pelabuhan: str, tahun: int, bulan: int, jenis: str) -> list:
@@ -106,7 +107,7 @@ async def process_pkk(session: aiohttp.ClientSession, npk: str) -> List[dict]:
         return []
 
     # Extract ship_info and dates
-    ship_info, dates, status = extract_ship_info_and_dates(soup)
+    ship_info, dates, status, other_services = extract_ship_info_and_dates(soup)
 
     # Parse title
     if " - " in title:
@@ -119,8 +120,8 @@ async def process_pkk(session: aiohttp.ClientSession, npk: str) -> List[dict]:
     bendera_call_imo = ship_info.get("Bendera / Call Sign / IMO", "")
     parts = [x.strip() for x in bendera_call_imo.split(" / ")]
     bendera = parts[0] if len(parts) > 0 else ""
-    call_sign = parts[1] if len(parts) > 1 else ""
-    imo = parts[2] if len(parts) > 2 else ""
+    # call_sign = parts[1] if len(parts) > 1 else ""  # Removed
+    # imo = parts[2] if len(parts) > 2 else ""  # Removed
 
     gt_dwt = ship_info.get("GT / DWT", "")
     parts = [x.strip() for x in gt_dwt.split(" / ")]
@@ -129,13 +130,13 @@ async def process_pkk(session: aiohttp.ClientSession, npk: str) -> List[dict]:
 
     draft = ship_info.get("Draft Depan / Belakang / Max", "")
     parts = [x.strip() for x in draft.split(" / ")]
-    draft_depan = parts[0] if len(parts) > 0 else ""
-    belakang = parts[1] if len(parts) > 1 else ""
+    # draft_depan = parts[0] if len(parts) > 0 else ""  # Removed
+    # belakang = parts[1] if len(parts) > 1 else ""  # Removed
     max_draft = parts[2] if len(parts) > 2 else ""
 
     panjang_lebar = ship_info.get("Panjang / Lebar", "")
     parts = [x.strip() for x in panjang_lebar.split(" / ")]
-    panjang = parts[0] if len(parts) > 0 else ""
+    # panjang = parts[0] if len(parts) > 0 else ""  # Removed
     lebar = parts[1] if len(parts) > 1 else ""
 
     # Common fields
@@ -145,24 +146,9 @@ async def process_pkk(session: aiohttp.ClientSession, npk: str) -> List[dict]:
         "ETA": dates.get("ETA", ""),
         "ETD": dates.get("ETD", ""),
         "Nama Perusahaan": ship_info.get("Nama Perusahaan", ""),
-        "Bendera": bendera,
-        "Call Sign": call_sign,
-        "IMO": imo,
         "GT": gt,
-        "DWT": dwt,
-        "Draft Depan": draft_depan,
-        "Belakang": belakang,
-        "Max": max_draft,
-        "Panjang": panjang,
-        "Lebar": lebar,
         "Jenis Trayek": dates.get("Jenis Trayek", ""),
-        "Nomor Trayek": dates.get("Nomor Trayek", ""),
-        "Sebelum Asal": dates.get("Sebelum Asal", ""),
         "Singgah": dates.get("Singgah", ""),
-        "Asal": dates.get("Asal", ""),
-        "Tujuan": dates.get("Tujuan", ""),
-        "No. SSM": dates.get("No. SSM", ""),
-        "Single Billing": dates.get("Single Billing", ""),
     }
 
     # Unpivot: create rows for arrival and departure
@@ -170,15 +156,10 @@ async def process_pkk(session: aiohttp.ClientSession, npk: str) -> List[dict]:
     # Arrival row
     arrival_row = common.copy()
     arrival_row["Tipe"] = "Kedatangan"
-    arrival_row["Status"] = status.get("Status Kedatangan", "")
     arrival_row["Layanan"] = status.get("Layanan Kedatangan", "")
-    arrival_row["Waktu Permohonan"] = status.get("Waktu Permohonan Kedatangan", "")
-    arrival_row["Waktu Persetujuan"] = status.get("Waktu Persetujuan Kedatangan", "")
-    arrival_row["Proses"] = status.get("Proses Kedatangan", "")
     arrival_row["Verifikator"] = status.get("Verifikator Kedatangan", "")
     arrival_row["Nomor Produk"] = status.get("Nomor Produk Kedatangan", "")
     arrival_row["Lokasi Sandar"] = status.get("Lokasi Sandar Kedatangan", "")
-    arrival_row["Status Integrasi"] = status.get("Status Integrasi Kedatangan", "")
     # Add SPK if applicable
     arrival_row["Nomor SPK"] = status.get("Nomor Produk Kedatangan", "") if "SPK" in status.get("Layanan Kedatangan", "") else ""
     if arrival_row["Nomor SPK"]:
@@ -186,20 +167,54 @@ async def process_pkk(session: aiohttp.ClientSession, npk: str) -> List[dict]:
         arrival_row["Waktu SPK"] = waktu if waktu else ""
     else:
         arrival_row["Waktu SPK"] = ""
-    rows.append(arrival_row)
+    # Add kategori SPK
+    pelindo_verifikators = [
+        "PT. PELABUHAN INDONESIA (Persero)",
+        "PT PELABUHAN INDONESIA (PERSERO) REGIONAL 2 PONTIANAK",
+        "PT. PELABUHAN INDONESIA (PERSERO) REGIONAL 2 BANTEN",
+        "PT. PELABUHAN INDONESIA (PERSERO) REGIONAL 3 Tj. Emas",
+        "PT. PELABUHAN INDONESIA (Persero) Cab. Gresik",
+        "PT. PELABUHAN INDONESIA (PERSERO) REGIONAL 4 CAB. MAKASSAR",
+        "PT. PELABUHAN INDONESIA (PERSERO) REGIONAL 4 CAB. BALIKPAPAN",
+        "PT PELINDO JASA MARITIM",
+        "PT. PELABUHAN INDONESIA (Persero) CABANG KUPANG",
+        "PT. PELABUHAN INDONESIA (Persero) Cab. Belawan",
+        "PT. PELABUHAN INDONESIA (Persero) Cab. Palembang",
+        "PT. PELABUHAN INDONESIA (PERSERO) REGIONAL 4 CAB. TERNATE",
+        "PT. PELABUHAN INDONESIA (PERSERO) REGIONAL 4 CAB. KENDARI",
+        "PT. PELABUHAN INDONESIA (Persero) Cab. Pulau Ba'ai",
+        "PT. PELABUHAN INDONESIA (PERSERO) REGIONAL 4 CAB. TARAKAN",
+        "PELABUHAN INDONESIA",
+        "PT. PELABUHAN INDONESIA (Persero) Cab. Tanjung Pandan",
+        "PT. PELABUHAN INDONESIA (PERSERO) REGIONAL 4 CAB. AMBON",
+        "PT. PELABUHAN INDONESIA (PERSERO) REGIONAL 4 CAB. GORONTALO",
+        "KANTOR KESYAHBANDARAN DAN OTORITAS PELABUHAN UTAMA TANJUNG PRIOK",
+        "PT. PELABUHAN INDONESIA (Persero) Batulicin",
+        "PT. Pelabuhan Indonesia (Persero) Regional 1 Cabang Dumai",
+        "PT. PELABUHAN INDONESIA (Persero) CABANG SATUI",
+        "PT. PELABUHAN INDONESIA (Persero) CABANG SAMPIT",
+        "PT Pelabuhan Indonesia",
+        "PT. PELABUHAN INDONESIA (Persero) CABANG LEMBAR",
+        "PT. PELABUHAN INDONESIA (Persero) Cab. Cilacap",
+        "PT. PELABUHAN INDONESIA (Persero) CABANG TANJUNG WANGI",
+        "PT PELABUHAN INDONESIA (PERSERO)"
+    ]
+    
+    # Filter hanya untuk layanan SPK PANDU
+    if arrival_row["Layanan"] == "SPK PANDU":
+        if arrival_row["Verifikator"] in pelindo_verifikators:
+            arrival_row["Kategori SPK"] = "PELINDO"
+        else:
+            arrival_row["Kategori SPK"] = "NON PELINDO"
+        rows.append(arrival_row)
 
     # Departure row
     departure_row = common.copy()
     departure_row["Tipe"] = "Keberangkatan"
-    departure_row["Status"] = status.get("Status Keberangkatan", "")
     departure_row["Layanan"] = status.get("Layanan Keberangkatan", "")
-    departure_row["Waktu Permohonan"] = status.get("Waktu Permohonan Keberangkatan", "")
-    departure_row["Waktu Persetujuan"] = status.get("Waktu Persetujuan Keberangkatan", "")
-    departure_row["Proses"] = status.get("Proses Keberangkatan", "")
     departure_row["Verifikator"] = status.get("Verifikator Keberangkatan", "")
     departure_row["Nomor Produk"] = status.get("Nomor Produk Keberangkatan", "")
     departure_row["Lokasi Sandar"] = status.get("Lokasi Sandar Keberangkatan", "")
-    departure_row["Status Integrasi"] = status.get("Status Integrasi Keberangkatan", "")
     # Add SPK if applicable
     departure_row["Nomor SPK"] = status.get("Nomor Produk Keberangkatan", "") if "SPK" in status.get("Layanan Keberangkatan", "") else ""
     if departure_row["Nomor SPK"]:
@@ -207,7 +222,36 @@ async def process_pkk(session: aiohttp.ClientSession, npk: str) -> List[dict]:
         departure_row["Waktu SPK"] = waktu if waktu else ""
     else:
         departure_row["Waktu SPK"] = ""
-    rows.append(departure_row)
+    # Filter hanya untuk layanan SPK PANDU
+    if departure_row["Layanan"] == "SPK PANDU":
+        if departure_row["Verifikator"] in pelindo_verifikators:
+            departure_row["Kategori SPK"] = "PELINDO"
+        else:
+            departure_row["Kategori SPK"] = "NON PELINDO"
+        rows.append(departure_row)
+
+    # Other services (e.g., ship movement)
+    for other_service in other_services:
+        other_row = common.copy()
+        other_row["Tipe"] = other_service.get("Layanan", "Lainnya")
+        other_row["Layanan"] = other_service.get("Layanan", "")
+        other_row["Verifikator"] = other_service.get("Verifikator", "")
+        other_row["Nomor Produk"] = other_service.get("Nomor Produk", "")
+        other_row["Lokasi Sandar"] = other_service.get("Lokasi Sandar", "")
+        # Add SPK if applicable
+        other_row["Nomor SPK"] = other_service.get("Nomor Produk", "") if "SPK" in other_service.get("Layanan", "") else ""
+        if other_row["Nomor SPK"]:
+            waktu = other_service.get("Waktu Permohonan", "")
+            other_row["Waktu SPK"] = waktu if waktu else ""
+        else:
+            other_row["Waktu SPK"] = ""
+        # Filter hanya untuk layanan SPK PANDU
+        if other_row["Layanan"] == "SPK PANDU":
+            if other_row["Verifikator"] in pelindo_verifikators:
+                other_row["Kategori SPK"] = "PELINDO"
+            else:
+                other_row["Kategori SPK"] = "NON PELINDO"
+            rows.append(other_row)
 
     return rows
 
@@ -278,13 +322,14 @@ def table_to_dict(table_tag) -> Dict[str, str]:
     return data
 
 
-def extract_ship_info_and_dates(soup: BeautifulSoup) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str]]:
+def extract_ship_info_and_dates(soup: BeautifulSoup) -> Tuple[Dict[str, str], Dict[str, str], Dict[str, str], List[dict]]:
     tables = soup.find_all("table")
     ship_info = {}
     dates = {}
     status = {}
+    other_services = []
     if not tables:
-        return ship_info, dates, status
+        return ship_info, dates, status, other_services
     # Ambil tabel pertama untuk info kapal
     ship_info = table_to_dict(tables[0])
     # Ambil ETA/ETD dari tabel kedua jika ada
@@ -312,6 +357,7 @@ def extract_ship_info_and_dates(soup: BeautifulSoup) -> Tuple[Dict[str, str], Di
     # Ambil status pelayanan dari tabel layanan (tabel 2,3,4,5, dll)
     arrival_services = []
     departure_services = []
+    other_services = []
     for table in tables[1:]:  # Skip table 0 (ship info), check others
         table_dict = table_to_dict(table)
         if 'Layanan' in table_dict or any('Layanan' in str(row) for row in table.find_all("tr")):
@@ -333,8 +379,10 @@ def extract_ship_info_and_dates(soup: BeautifulSoup) -> Tuple[Dict[str, str], Di
                     }
                     if cols[0] in ['RPKRO', 'PPK', 'PKK', 'SPM']:  # Arrival services
                         arrival_services.append(service_info)
-                    if cols[0] in ['SPOG', 'SPB', 'SPK PANDU']:  # Departure services
+                    elif cols[0] in ['SPOG', 'SPB', 'SPK PANDU']:  # Departure services
                         departure_services.append(service_info)
+                    else:  # Other services like ship movement
+                        other_services.append(service_info)
     # Summarize status
     status["Status Kedatangan"] = "; ".join([s["Status"] for s in arrival_services]) if arrival_services else ""
     status["Status Keberangkatan"] = "; ".join([s["Status"] for s in departure_services]) if departure_services else ""
@@ -393,7 +441,7 @@ def extract_ship_info_and_dates(soup: BeautifulSoup) -> Tuple[Dict[str, str], Di
                     snippet = text[idx: idx + 100]
                     part = snippet.split(token, 1)[1].lstrip(" :|-")
                     status[f"Status {token.lower().capitalize()}"] = part.split("|")[0].strip()
-    return ship_info, dates, status
+    return ship_info, dates, status, other_services
 
 
 def pretty_print(title: Optional[str], captain: Optional[str], ship_info: Dict[str, str], dates: Dict[str, str]):
@@ -540,6 +588,16 @@ def save_table_as_json_csv(soup: BeautifulSoup, json_path: str = "hasil_scrap.js
         print(f"Failed to save table to files: {exc}")
 
 
+async def test_single_pkk(npk: str):
+    """Test function for a single PKK"""
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; Scraper/1.0; +https://example.org/bot)"
+    }
+    async with aiohttp.ClientSession(headers=headers) as session:
+        rows = await process_pkk(session, npk)
+        print(f"Total rows for {npk}: {len(rows)}")
+        for row in rows:
+            print(f"  Tipe: {row.get('Tipe', 'N/A')}, Status: {row.get('Status', 'N/A')}, Layanan: {row.get('Layanan', 'N/A')}")
 async def gather_all_details(session: aiohttp.ClientSession, pkk_list: List[str]) -> List[dict]:
     semaphore = asyncio.Semaphore(100)  # Limit concurrency - balanced for speed and stability
     results = []
@@ -580,7 +638,28 @@ def main():
     parser.add_argument("--tahun", type=int, default=2025, help="Tahun")
     parser.add_argument("--bulan", type=int, nargs='*', help="Bulan (opsional, default semua bulan)")
     parser.add_argument("--jenis", nargs='*', default=["dn", "ln"], help="Jenis: dn atau ln (default keduanya)")
+    parser.add_argument("--test-pkk", help="Test single PKK number and save to CSV")
     args = parser.parse_args()
+
+    if args.test_pkk:
+        # Test single PKK and save to CSV
+        async def run_test():
+            headers = {
+                "User-Agent": "Mozilla/5.0 (compatible; Scraper/1.0; +https://example.org/bot)"
+            }
+            async with aiohttp.ClientSession(headers=headers) as session:
+                rows = await process_pkk(session, args.test_pkk)
+                if rows:
+                    out_path = f"test_{args.test_pkk}.csv"
+                    with open(out_path, "w", newline="", encoding="utf-8") as f:
+                        writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+                        writer.writeheader()
+                        writer.writerows(rows)
+                    print(f"Saved {len(rows)} rows to {out_path}")
+                else:
+                    print("No data found.")
+        asyncio.run(run_test())
+        return
 
     if "all" in args.kode:
         kode_list = get_all_ports()

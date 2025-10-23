@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Data Table</title>
+    <link rel="preload" href="ina.csv" as="fetch" crossorigin>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        /* Table styling improvements */
+        #dataTable {
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        #dataTable tbody tr:nth-child(even) {
+            background-color: #f9fafb;
+        }
+        #dataTable tbody tr:hover {
+            background-color: #f8fafc !important;
+        }
+        #dataTable tbody td {
+            border-bottom: 1px solid #e5e7eb;
+            transition: background-color 0.15s ease;
+        }
+        .loading-spinner {
+            border: 2px solid #f3f3f3;
+            border-top: 2px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Ensure table text is visible */
+        #dataTable td, #dataTable th {
+            color: #111827 !important;
+            background: transparent !important;
+            min-width: 120px;
+            max-width: 200px;
+            word-wrap: break-word;
+            word-break: break-word;
+            white-space: normal;
+            vertical-align: top;
+            padding: 0.5rem 0.75rem;
+        }
+        #dataTable th {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        #dataTable tbody tr {
+            min-height: 3rem;
+        }
+        #dataTable tbody td {
+            line-height: 1.4;
+        }
+        #tableBody {
+            background: white !important;
+        }
+        /* Table responsiveness for wide data */
+        .table-container {
+            background: white !important;
+        }
+        @media (max-width: 768px) {
+            #dataTable {
+                font-size: 0.75rem;
+            }
+            #dataTable td, #dataTable th {
+                padding: 0.25rem 0.5rem;
+                min-width: 80px;
+                max-width: 120px;
+            }
+        }
+        /* Filter row styling */
+        #filterHeader th {
+            padding: 0.5rem 0.75rem !important;
+            background: #f3f4f6 !important;
+            vertical-align: top;
+        }
+        #filterHeader input {
+            font-size: 0.75rem !important;
+            line-height: 1rem !important;
+        }
+        #filterHeader input:focus {
+            outline: none !important;
+            box-shadow: 0 0 0 1px #3b82f6 !important;
+        }
+        /* Filter dropdown styles */
+        .filter-dropdown {
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .filter-dropdown-btn:hover {
+            background-color: #e5e7eb;
+        }
+        .filter-active {
+            background-color: #dbeafe !important;
+            border-color: #3b82f6 !important;
+        }
+        .filter-checkbox:checked {
+            background-color: #3b82f6;
+            border-color: #3b82f6;
+        }
+        .close-filter:hover {
+            color: #374151 !important;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- Header -->
+    <header class="gradient-bg text-white py-6">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-center">
+                <div class="text-center">
+                    <h1 class="text-3xl font-bold">Data Table</h1>
+                    <p class="text-blue-100 mt-2">Complete Port Operations Data</p>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <!-- Loading Indicator -->
+        <div id="loadingIndicator" class="bg-white rounded-lg shadow-lg p-8 mb-6" style="display: none;">
+            <div class="flex items-center justify-center space-x-4">
+                <div class="loading-spinner"></div>
+                <span class="text-lg text-gray-600">Loading data...</span>
+            </div>
+        </div>
+
+        <!-- Table Container -->
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div class="p-4 border-b border-gray-200">
+                <div class="flex justify-between items-center">
+                    <h2 class="text-lg font-semibold text-gray-800">Data Filters</h2>
+                    <button id="clearFilters" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm">
+                        Clear All Filters
+                    </button>
+                </div>
+            </div>
+        <!-- Table Container -->
+        <div class="bg-white rounded-lg shadow-lg overflow-hidden" style="background: white !important;">
+            <div class="overflow-x-auto" style="background: white !important;">
+                <table id="dataTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr id="tableHeader">
+                            <!-- Headers will be populated by JavaScript -->
+                        </tr>
+                        <tr id="filterHeader" class="bg-gray-100 border-b border-gray-200">
+                            <!-- Filters will be populated by JavaScript -->
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="bg-white divide-y divide-gray-200" style="background: white !important;">
+                        <!-- Data rows will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Empty State -->
+            <div id="emptyState" class="p-8 text-center text-gray-500" style="display: none;">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <h3 class="mt-2 text-sm font-medium text-gray-900">No data found</h3>
+                <p class="mt-1 text-sm text-gray-500">Try adjusting your search criteria.</p>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div class="bg-white rounded-lg shadow-lg p-4 mt-6">
+            <div class="flex items-center justify-between">
+                <div class="text-sm text-gray-700">
+                    Showing <span id="showingStart">0</span> to <span id="showingEnd">0</span> of <span id="totalEntries">0</span> entries
+                </div>
+                <div class="flex space-x-1">
+                    <button id="prevBtn" class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Previous</button>
+                    <div id="pageNumbers" class="flex space-x-1">
+                        <!-- Page numbers will be populated by JavaScript -->
+                    </div>
+                    <button id="nextBtn" class="px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed">Next</button>
+                </div>
+            </div>
+            <div class="flex justify-between items-center mt-4 pt-4 border-t border-gray-200">
+                <div class="flex items-center space-x-2">
+                    <label for="entriesPerPage" class="text-sm text-gray-700">Show:</label>
+                    <select id="entriesPerPage" class="px-2 py-1 border border-gray-300 rounded text-sm focus:ring-1 focus:ring-blue-500">
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                    <span class="text-sm text-gray-700">entries</span>
+                </div>
+                <button id="exportBtn" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm">
+                    Export CSV
+                </button>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        // Global variables
+        let allData = [];
+        let filteredData = [];
+        let currentPage = 1;
+        let entriesPerPage = 10;
+        let sortColumn = null;
+        let sortDirection = 'asc';
+        let columnFilters = {}; // Store filter values for each column
+        let filterValueCache = {}; // Cache for unique values per column
+        let performanceMarks = {};
+
+        // Performance monitoring
+        function markPerformance(label) {
+            performanceMarks[label] = performance.now();
+        }
+
+        function measurePerformance(label) {
+            if (performanceMarks[label]) {
+                const duration = performance.now() - performanceMarks[label];
+                console.log(`${label} took ${duration.toFixed(2)}ms`);
+                delete performanceMarks[label];
+                return duration;
+            }
+            return 0;
+        }
+
+        // Memory optimization - clear unused cache entries
+        function optimizeMemory() {
+            // Clear filter cache for columns that are not actively filtered
+            const activeColumns = new Set(Object.keys(columnFilters));
+            Object.keys(filterValueCache).forEach(column => {
+                if (!activeColumns.has(column)) {
+                    delete filterValueCache[column];
+                }
+            });
+
+            // Force garbage collection if available (development only)
+            if (window.gc && typeof window.gc === 'function') {
+                window.gc();
+            }
+        }
+
+        // Debounce utility function
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Debounced version of applyFilters
+        const debouncedApplyFilters = debounce(applyFilters, 300);
+
+        // DOM elements
+        const entriesPerPageSelect = document.getElementById('entriesPerPage');
+        const exportBtn = document.getElementById('exportBtn');
+        const clearFiltersBtn = document.getElementById('clearFilters');
+        const tableHeader = document.getElementById('tableHeader');
+        const filterHeader = document.getElementById('filterHeader');
+        const tableBody = document.getElementById('tableBody');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const emptyState = document.getElementById('emptyState');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const pageNumbers = document.getElementById('pageNumbers');
+        const showingStart = document.getElementById('showingStart');
+        const showingEnd = document.getElementById('showingEnd');
+        const totalEntries = document.getElementById('totalEntries');
+
+        // Test function to show static data
+        function showTestData() {
+            console.log('Showing test data');
+            const testData = [
+                { Port: 'Test Port 1', GT: '1000', Category: 'Test', Pelindo: 'Yes' },
+                { Port: 'Test Port 2', GT: '2000', Category: 'Test', Pelindo: 'No' }
+            ];
+
+            allData = testData;
+            filteredData = [...testData];
+
+            renderTable();
+            applyFilters();
+        }
+
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', function() {
+            // Try loading real data first, fallback to test data
+            loadData().catch(() => {
+                console.log('Falling back to test data');
+                showTestData();
+            });
+            setupEventListeners();
+        });
+
+        // Setup event listeners with optimized handlers
+        function setupEventListeners() {
+            entriesPerPageSelect.addEventListener('change', handleEntriesChange);
+            exportBtn.addEventListener('click', exportToCSV);
+            clearFiltersBtn.addEventListener('click', clearAllFilters);
+            prevBtn.addEventListener('click', () => changePage(currentPage - 1));
+            nextBtn.addEventListener('click', () => changePage(currentPage + 1));
+        }
+
+        // Create column filter inputs with Excel-like functionality
+        function createColumnFilters(headers) {
+            filterHeader.innerHTML = '';
+
+            headers.forEach(header => {
+                const filterCell = document.createElement('th');
+                filterCell.className = 'px-6 py-2 bg-gray-100 border-b border-gray-200 relative';
+                filterCell.innerHTML = `
+                    <div class="flex items-center justify-between">
+                        <input type="text"
+                               class="column-filter flex-1 px-2 py-1 text-xs border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                               data-column="${header}"
+                               placeholder="Filter ${header}...">
+                        <button class="filter-dropdown-btn ml-1 p-1 hover:bg-gray-200 rounded"
+                                data-column="${header}"
+                                title="Advanced Filter">
+                            <svg class="w-3 h-3 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="filter-dropdown absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded shadow-lg z-10 hidden"
+                         data-column="${header}"
+                         style="min-width: 200px; max-width: 300px;">
+                        <div class="p-2">
+                            <div class="flex items-center justify-between mb-2">
+                                <span class="text-xs font-medium text-gray-700">Filter by ${header}</span>
+                                <button class="close-filter text-xs text-gray-500 hover:text-gray-700">×</button>
+                            </div>
+                            <div class="filter-options mb-2">
+                                <select class="filter-condition w-full px-2 py-1 text-xs border border-gray-300 rounded mb-2">
+                                    <option value="contains">Contains</option>
+                                    <option value="equals">Equals</option>
+                                    <option value="starts_with">Starts with</option>
+                                    <option value="ends_with">Ends with</option>
+                                    <option value="not_contains">Does not contain</option>
+                                </select>
+                            </div>
+                            <div class="filter-values max-h-40 overflow-y-auto">
+                                <!-- Filter checkboxes will be populated here -->
+                            </div>
+                            <div class="flex justify-between mt-2 pt-2 border-t border-gray-200">
+                                <button class="select-all-btn px-2 py-1 text-xs bg-blue-500 text-white rounded hover:bg-blue-600">Select All</button>
+                                <button class="clear-filter-btn px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600">Clear</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                filterHeader.appendChild(filterCell);
+
+                // Add event listeners
+                const input = filterCell.querySelector('.column-filter');
+                const dropdownBtn = filterCell.querySelector('.filter-dropdown-btn');
+                const dropdown = filterCell.querySelector('.filter-dropdown');
+                const closeBtn = filterCell.querySelector('.close-filter');
+                const selectAllBtn = filterCell.querySelector('.select-all-btn');
+                const clearFilterBtn = filterCell.querySelector('.clear-filter-btn');
+                const conditionSelect = filterCell.querySelector('.filter-condition');
+
+                input.addEventListener('input', debounce(() => handleColumnFilter(header), 300));
+                dropdownBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    toggleFilterDropdown(header);
+                });
+                closeBtn.addEventListener('click', () => hideFilterDropdown(header));
+                selectAllBtn.addEventListener('click', () => selectAllFilterValues(header));
+                clearFilterBtn.addEventListener('click', () => clearColumnFilter(header));
+                conditionSelect.addEventListener('change', () => updateFilterCondition(header));
+
+                // Close dropdown when clicking outside
+                document.addEventListener('click', (e) => {
+                    if (!filterCell.contains(e.target)) {
+                        hideFilterDropdown(header);
+                    }
+                });
+            });
+        }        // Load data from CSV with progressive loading and proper CSV parsing
+        async function loadData() {
+            markPerformance('loadData');
+            loadingIndicator.style.display = 'block';
+
+            try {
+                const response = await fetch('ina.csv');
+                const csvText = await response.text();
+
+                // Parse CSV with proper handling of quoted fields
+                const lines = csvText.split('\n').filter(line => line.trim());
+                const headers = parseCSVLine(lines[0]).map(h => h.trim());
+
+                // Process data in chunks for better performance
+                const chunkSize = 1000;
+                const totalLines = lines.length - 1; // Exclude header
+                allData = [];
+
+                for (let i = 1; i < lines.length; i += chunkSize) {
+                    const chunk = lines.slice(i, Math.min(i + chunkSize, lines.length));
+                    const chunkData = chunk
+                        .filter(line => line.trim())
+                        .map(line => {
+                            const values = parseCSVLine(line);
+                            const obj = {};
+                            headers.forEach((header, index) => {
+                                obj[header] = values[index]?.trim() || '';
+                            });
+                            return obj;
+                        });
+
+                    allData.push(...chunkData);
+
+                    // Update progress (optional - could show progress bar)
+                    const progress = Math.round((i / totalLines) * 100);
+                    console.log(`Loading progress: ${progress}% (${allData.length} records)`);
+                }
+
+                filteredData = [...allData];
+
+                // Clear filter value cache when new data is loaded
+                filterValueCache = {};
+
+                console.log('Data loaded successfully:', allData.length, 'records');
+                console.log('Headers:', headers);
+                console.log('Sample data:', allData.slice(0, 2));
+
+                renderTable();
+                applyFilters();
+
+                measurePerformance('loadData');
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                // Show error message in table
+                tableBody.innerHTML = `<tr><td colspan="100%" class="px-6 py-4 text-center text-red-500" style="color: #dc2626 !important; background: white !important;">Error loading data: ${error.message}. Please check console for details.</td></tr>`;
+                // Also show in console
+                alert('Error loading data. Check console for details.');
+            } finally {
+                loadingIndicator.style.display = 'none';
+            }
+        }
+
+        // Proper CSV line parser that handles quoted fields
+        function parseCSVLine(line) {
+            const result = [];
+            let current = '';
+            let inQuotes = false;
+            let i = 0;
+
+            while (i < line.length) {
+                const char = line[i];
+                const nextChar = line[i + 1];
+
+                if (char === '"') {
+                    if (inQuotes && nextChar === '"') {
+                        // Escaped quote
+                        current += '"';
+                        i += 2;
+                        continue;
+                    } else {
+                        // Toggle quote state
+                        inQuotes = !inQuotes;
+                    }
+                } else if (char === ',' && !inQuotes) {
+                    // Field separator
+                    result.push(current);
+                    current = '';
+                } else {
+                    current += char;
+                }
+
+                i++;
+            }
+
+            // Add the last field
+            result.push(current);
+
+            return result;
+        }
+
+        // Render table headers and data
+        function renderTable() {
+            console.log('Rendering table with', allData.length, 'records');
+            if (allData.length === 0) {
+                console.log('No data to render');
+                return;
+            }
+
+            // Create column filters if not already created
+            if (filterHeader.children.length === 0) {
+                const headers = Object.keys(allData[0]);
+                createColumnFilters(headers);
+            }
+
+            // Render headers
+            const headers = Object.keys(allData[0]);
+            tableHeader.innerHTML = headers.map(header =>
+                `<th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100 sort-header" data-column="${header}">
+                    <div class="flex items-center space-x-1">
+                        <span>${header}</span>
+                        <div class="sort-icons">
+                            <svg class="w-3 h-3 text-gray-400 sort-asc" style="display: none;" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M3 3a1 1 0 000 2v8a1 1 0 001 1h1a1 1 0 001-1V6.414l2.293 2.293a1 1 0 001.414-1.414l-4-4a1 1 0 00-1.414 0l-4 4a1 1 0 011.414 1.414L5 6.414V15a1 1 0 001 1h1a1 1 0 000-2H7V5a1 1 0 00-1-1H5a1 1 0 00-1-1z"/>
+                            </svg>
+                            <svg class="w-3 h-3 text-gray-400 sort-desc" style="display: none;" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M3 3a1 1 0 000 2h11a1 1 0 001-1V3a1 1 0 00-1-1H3zM3 7a1 1 0 000 2h5.586l-2.293 2.293a1 1 0 101.414 1.414l4-4a1 1 0 000-1.414l-4-4a1 1 0 10-1.414 1.414L8.586 7H3zM17 13a1 1 0 100 2H3a1 1 0 100 2h14z"/>
+                            </svg>
+                        </div>
+                    </div>
+                </th>`
+            ).join('');
+
+            // Add sort event listeners
+            document.querySelectorAll('.sort-header').forEach(header => {
+                header.addEventListener('click', () => handleSort(header.dataset.column));
+            });
+
+            // Apply filters and render
+            applyFilters();
+        }
+
+        // Render data rows for current page
+        function renderDataRows() {
+            console.log('Rendering data rows for page', currentPage, 'with', filteredData.length, 'filtered records');
+
+            const startIndex = (currentPage - 1) * entriesPerPage;
+            const endIndex = startIndex + entriesPerPage;
+            const pageData = filteredData.slice(startIndex, endIndex);
+
+            console.log('Page data:', pageData.length, 'records for current page');
+
+            if (pageData.length === 0) {
+                tableBody.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            // Use standard rendering for better compatibility
+            renderStandardRows(pageData);
+        }
+
+        // Standard rendering for datasets
+        function renderStandardRows(pageData) {
+            // Use DocumentFragment for better performance
+            const fragment = document.createDocumentFragment();
+            const headers = Object.keys(allData[0] || {});
+
+            pageData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-gray-50';
+
+                headers.forEach(header => {
+                    const td = document.createElement('td');
+                    td.className = 'px-3 py-2 text-sm text-gray-900 align-top';
+                    td.style.cssText = 'color: #111827 !important; background: transparent !important; word-wrap: break-word; word-break: break-word; white-space: normal; max-width: 200px; min-width: 120px;';
+                    td.title = row[header] || ''; // Show full text on hover
+                    td.textContent = row[header] || '';
+                    tr.appendChild(td);
+                });
+
+                fragment.appendChild(tr);
+            });
+
+            // Clear and append in one operation
+            tableBody.innerHTML = '';
+            tableBody.appendChild(fragment);
+        }
+
+        // Virtual scrolling for large datasets (disabled for now)
+        function renderVirtualRows(startIndex, endIndex) {
+            // Temporarily use standard rendering
+            const pageData = filteredData.slice(startIndex, endIndex);
+            renderStandardRows(pageData);
+        }
+
+        // Handle column filter input
+        function handleColumnFilter(column) {
+            const input = document.querySelector(`.column-filter[data-column="${column}"]`);
+            const value = input.value.toLowerCase().trim();
+            columnFilters[column] = value;
+
+            updateFilterIndicator(column);
+            debouncedApplyFilters();
+        }
+
+        // Toggle filter dropdown
+        function toggleFilterDropdown(column) {
+            // Hide all other dropdowns first
+            document.querySelectorAll('.filter-dropdown').forEach(dropdown => {
+                if (dropdown.dataset.column !== column) {
+                    dropdown.classList.add('hidden');
+                }
+            });
+
+            const dropdown = document.querySelector(`.filter-dropdown[data-column="${column}"]`);
+            if (dropdown.classList.contains('hidden')) {
+                populateFilterValues(column);
+                dropdown.classList.remove('hidden');
+            } else {
+                dropdown.classList.add('hidden');
+            }
+        }
+
+        // Hide filter dropdown
+        function hideFilterDropdown(column) {
+            const dropdown = document.querySelector(`.filter-dropdown[data-column="${column}"]`);
+            dropdown.classList.add('hidden');
+        }
+
+        // Populate filter dropdown with unique values (optimized with caching)
+        function populateFilterValues(column) {
+            const dropdown = document.querySelector(`.filter-dropdown[data-column="${column}"]`);
+            const valuesContainer = dropdown.querySelector('.filter-values');
+
+            // Use cached values if available, otherwise compute and cache
+            let uniqueValues;
+            if (filterValueCache[column]) {
+                uniqueValues = filterValueCache[column];
+            } else {
+                uniqueValues = [...new Set(allData.map(row => row[column]).filter(val => val && val.trim()))]
+                    .sort((a, b) => {
+                        // Try numeric sort first
+                        const aNum = parseFloat(a);
+                        const bNum = parseFloat(b);
+                        if (!isNaN(aNum) && !isNaN(bNum)) {
+                            return aNum - bNum;
+                        }
+                        // String sort
+                        return a.localeCompare(b);
+                    });
+                filterValueCache[column] = uniqueValues;
+            }
+
+            // Use DocumentFragment for better performance
+            const fragment = document.createDocumentFragment();
+            uniqueValues.forEach(value => {
+                const label = document.createElement('label');
+                label.className = 'flex items-center space-x-2 py-1 hover:bg-gray-50 px-1 rounded cursor-pointer';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'filter-checkbox w-3 h-3 text-blue-600 rounded focus:ring-blue-500';
+                checkbox.dataset.column = column;
+                checkbox.dataset.value = value;
+                checkbox.checked = true;
+
+                const span = document.createElement('span');
+                span.className = 'text-xs text-gray-700 truncate';
+                span.title = value;
+                span.textContent = value;
+
+                label.appendChild(checkbox);
+                label.appendChild(span);
+                fragment.appendChild(label);
+            });
+
+            valuesContainer.innerHTML = '';
+            valuesContainer.appendChild(fragment);
+
+            // Add event listeners to checkboxes
+            valuesContainer.querySelectorAll('.filter-checkbox').forEach(checkbox => {
+                checkbox.addEventListener('change', () => handleCheckboxFilter(column));
+            });
+        }
+
+        // Handle checkbox filter changes
+        function handleCheckboxFilter(column) {
+            const checkboxes = document.querySelectorAll(`.filter-checkbox[data-column="${column}"]:checked`);
+            const selectedValues = Array.from(checkboxes).map(cb => cb.dataset.value);
+
+            if (selectedValues.length === 0) {
+                // No values selected, clear filter
+                delete columnFilters[column];
+            } else {
+                // Get all unique values to check if all are selected
+                const allValues = [...new Set(allData.map(row => row[column]).filter(val => val && val.trim()))];
+                if (selectedValues.length === allValues.length) {
+                    // All values selected, clear filter
+                    delete columnFilters[column];
+                } else {
+                    // Partial selection, apply filter
+                    columnFilters[column] = {
+                        type: 'checkbox',
+                        values: selectedValues,
+                        condition: document.querySelector(`.filter-dropdown[data-column="${column}"] .filter-condition`).value
+                    };
+                }
+            }
+
+            updateFilterIndicator(column);
+            debouncedApplyFilters();
+        }
+
+        // Update filter indicator for column
+        function updateFilterIndicator(column) {
+            const filterBtn = document.querySelector(`.filter-dropdown-btn[data-column="${column}"]`);
+            const hasFilter = columnFilters[column] && (
+                (typeof columnFilters[column] === 'string' && columnFilters[column].trim()) ||
+                (columnFilters[column].type === 'checkbox')
+            );
+
+            if (hasFilter) {
+                filterBtn.classList.add('filter-active');
+                filterBtn.innerHTML = `
+                    <svg class="w-3 h-3 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"/>
+                    </svg>
+                `;
+            } else {
+                filterBtn.classList.remove('filter-active');
+                filterBtn.innerHTML = `
+                    <svg class="w-3 h-3 text-gray-500" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M3 3a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm0 4a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1z"/>
+                    </svg>
+                `;
+            }
+        }
+
+        // Select all filter values
+        function selectAllFilterValues(column) {
+            const checkboxes = document.querySelectorAll(`.filter-checkbox[data-column="${column}"]`);
+            checkboxes.forEach(cb => cb.checked = true);
+            delete columnFilters[column]; // Clear filter when all selected
+            updateFilterIndicator(column);
+            applyFilters();
+        }
+
+        // Clear column filter
+        function clearColumnFilter(column) {
+            // Clear checkboxes
+            const checkboxes = document.querySelectorAll(`.filter-checkbox[data-column="${column}"]`);
+            checkboxes.forEach(cb => cb.checked = true);
+
+            // Clear text input
+            const input = document.querySelector(`.column-filter[data-column="${column}"]`);
+            input.value = '';
+
+            // Clear filter
+            delete columnFilters[column];
+            updateFilterIndicator(column);
+            applyFilters();
+        }
+
+        // Update filter condition
+        function updateFilterCondition(column) {
+            const condition = document.querySelector(`.filter-dropdown[data-column="${column}"] .filter-condition`).value;
+            if (columnFilters[column] && columnFilters[column].type === 'checkbox') {
+                columnFilters[column].condition = condition;
+                applyFilters();
+            }
+        }
+
+        // Apply all filters and update display (optimized)
+        function applyFilters() {
+            markPerformance('applyFilters');
+            console.log('Applying filters:', columnFilters);
+
+            // Check if any filters are active
+            const activeFilters = Object.keys(columnFilters).filter(column => {
+                const filter = columnFilters[column];
+                return filter && (typeof filter === 'string' ? filter.trim() : filter.values && filter.values.length > 0);
+            });
+
+            // Start with all data or filtered data based on active filters
+            if (activeFilters.length === 0) {
+                filteredData = [...allData];
+            } else {
+                filteredData = allData.filter(row => {
+                    // Check each active filter
+                    return activeFilters.every(column => {
+                        const filterValue = columnFilters[column];
+                        if (typeof filterValue === 'string') {
+                            // Text-based filter (legacy)
+                            const cellValue = (row[column] || '').toString().toLowerCase();
+                            return cellValue.includes(filterValue);
+                        } else if (filterValue.type === 'checkbox') {
+                            // Checkbox-based filter
+                            const { values, condition } = filterValue;
+                            const cellValue = (row[column] || '').toString();
+
+                            // Apply condition
+                            switch (condition) {
+                                case 'equals':
+                                    return values.some(val => cellValue === val);
+                                case 'starts_with':
+                                    return values.some(val => cellValue.startsWith(val));
+                                case 'ends_with':
+                                    return values.some(val => cellValue.endsWith(val));
+                                case 'not_contains':
+                                    return !values.some(val => cellValue.includes(val));
+                                case 'contains':
+                                default:
+                                    return values.some(val => cellValue.includes(val));
+                            }
+                        }
+                        return true;
+                    });
+                });
+            }
+
+            // Apply sorting if active
+            if (sortColumn) {
+                filteredData.sort((a, b) => {
+                    const aVal = a[sortColumn] || '';
+                    const bVal = b[sortColumn] || '';
+
+                    // Try numeric comparison first
+                    const aNum = parseFloat(aVal);
+                    const bNum = parseFloat(bVal);
+
+                    if (!isNaN(aNum) && !isNaN(bNum)) {
+                        return sortDirection === 'asc' ? aNum - bNum : bNum - aNum;
+                    }
+
+                    // String comparison
+                    const comparison = aVal.localeCompare(bVal);
+                    return sortDirection === 'asc' ? comparison : -comparison;
+                });
+            }
+
+            console.log('Filtered and sorted data:', filteredData.length, 'records');
+            currentPage = 1;
+            renderDataRows();
+            updatePagination();
+
+            measurePerformance('applyFilters');
+        }
+
+        // Clear all filters
+        function clearAllFilters() {
+            // Clear filter inputs
+            document.querySelectorAll('.column-filter').forEach(input => {
+                input.value = '';
+            });
+
+            // Clear all checkboxes (set to checked)
+            document.querySelectorAll('.filter-checkbox').forEach(checkbox => {
+                checkbox.checked = true;
+            });
+
+            // Hide all dropdowns
+            document.querySelectorAll('.filter-dropdown').forEach(dropdown => {
+                dropdown.classList.add('hidden');
+            });
+
+            // Clear filter values
+            columnFilters = {};
+
+            // Reset filter indicators
+            const headers = Object.keys(allData[0] || {});
+            headers.forEach(header => updateFilterIndicator(header));
+
+            // Reset to all data
+            filteredData = [...allData];
+            currentPage = 1;
+
+            // Optimize memory usage
+            optimizeMemory();
+
+            applyFilters();
+        }
+
+        // Handle sorting
+        function handleSort(column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+
+            // Update sort icons
+            document.querySelectorAll('.sort-asc, .sort-desc').forEach(icon => {
+                icon.style.display = 'none';
+            });
+
+            const currentHeader = document.querySelector(`[data-column="${column}"]`);
+            if (currentHeader) {
+                const iconClass = sortDirection === 'asc' ? 'sort-asc' : 'sort-desc';
+                currentHeader.querySelector(`.${iconClass}`).style.display = 'block';
+            }
+
+            currentPage = 1;
+            applyFilters();
+        }
+
+        // Handle entries per page change
+        function handleEntriesChange() {
+            entriesPerPage = parseInt(entriesPerPageSelect.value);
+            currentPage = 1;
+            applyFilters();
+        }
+
+        // Update pagination controls
+        function updatePagination() {
+            const totalPages = Math.ceil(filteredData.length / entriesPerPage);
+            const startEntry = (currentPage - 1) * entriesPerPage + 1;
+            const endEntry = Math.min(currentPage * entriesPerPage, filteredData.length);
+
+            showingStart.textContent = filteredData.length > 0 ? startEntry : 0;
+            showingEnd.textContent = endEntry;
+            totalEntries.textContent = filteredData.length;
+
+            // Update page numbers
+            pageNumbers.innerHTML = '';
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+            if (endPage - startPage + 1 < maxVisiblePages) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                const pageBtn = document.createElement('button');
+                pageBtn.className = `px-3 py-1 border border-gray-300 rounded text-sm hover:bg-gray-50 ${
+                    i === currentPage ? 'bg-blue-500 text-white border-blue-500' : ''
+                }`;
+                pageBtn.textContent = i;
+                pageBtn.addEventListener('click', () => changePage(i));
+                pageNumbers.appendChild(pageBtn);
+            }
+
+            // Update prev/next buttons
+            prevBtn.disabled = currentPage === 1;
+            nextBtn.disabled = currentPage === totalPages || totalPages === 0;
+        }
+
+        // Change page
+        function changePage(page) {
+            const totalPages = Math.ceil(filteredData.length / entriesPerPage);
+            if (page < 1 || page > totalPages) return;
+
+            currentPage = page;
+            renderDataRows();
+            updatePagination();
+
+            // Scroll to top of table
+            document.querySelector('.overflow-x-auto').scrollIntoView({ behavior: 'smooth' });
+        }
+
+        // Export to CSV
+        function exportToCSV() {
+            if (filteredData.length === 0) {
+                alert('No data to export');
+                return;
+            }
+
+            const headers = Object.keys(filteredData[0]);
+            const csvContent = [
+                headers.join(','),
+                ...filteredData.map(row =>
+                    headers.map(header => `"${row[header] || ''}"`).join(',')
+                )
+            ].join('\n');
+
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.setAttribute('href', url);
+            link.setAttribute('download', `inaport_data_${new Date().toISOString().split('T')[0]}.csv`);
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Utility functions
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html></content>
+<parameter name="filePath">/Users/hadipurwana/Documents/PYTHON/INAPORT/tabel.html
