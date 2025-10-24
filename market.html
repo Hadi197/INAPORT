@@ -110,13 +110,22 @@
                 <div class="text-right">
                     <div class="mb-4">
                         <div class="relative">
-                            <select id="portFilter" class="bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white placeholder-white/70 focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-white/50">
-                                <option value="">All Ports</option>
-                            </select>
-                            <div class="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
-                                <svg class="w-5 h-5 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            <div id="portFilterContainer" class="bg-white/10 border border-white/20 rounded-lg px-4 py-2 text-white cursor-pointer min-h-[2.5rem] min-w-[400px] flex items-center">
+                                <span id="portFilterText" class="flex-1">All Ports</span>
+                                <svg class="w-5 h-5 text-white/70 transition-transform" id="portFilterArrow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                 </svg>
+                            </div>
+                            <div id="portFilterDropdown" class="absolute top-full left-0 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg z-50 hidden max-h-60 overflow-y-auto min-w-[400px]">
+                                <div class="p-2">
+                                    <label class="flex items-center space-x-2 py-1 hover:bg-gray-50 px-2 rounded cursor-pointer">
+                                        <input type="checkbox" id="portAll" class="w-4 h-4 text-blue-600 rounded focus:ring-blue-500" checked>
+                                        <span class="text-sm text-gray-700">All Ports</span>
+                                    </label>
+                                    <div id="portOptions" class="space-y-1">
+                                        <!-- Port options will be populated here -->
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -928,7 +937,7 @@
         function populatePortFilter() {
             if (portFilterInitialized) return; // Prevent re-initialization
 
-            const portFilter = document.getElementById('portFilter');
+            const portOptions = document.getElementById('portOptions');
             const ports = new Set();
 
             // Collect unique ports from Singgah column with validation
@@ -942,27 +951,102 @@
             // Sort ports alphabetically
             const sortedPorts = Array.from(ports).sort();
 
-            // Clear existing options except "All Ports"
-            portFilter.innerHTML = '<option value="">All Ports</option>';
+            // Clear existing options
+            portOptions.innerHTML = '';
 
-            // Add port options
+            // Add port checkbox options
             sortedPorts.forEach(port => {
-                const option = document.createElement('option');
-                option.value = port;
-                option.textContent = port;
-                portFilter.appendChild(option);
+                const label = document.createElement('label');
+                label.className = 'flex items-center space-x-2 py-1 hover:bg-gray-50 px-2 rounded cursor-pointer';
+
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'port-checkbox w-4 h-4 text-blue-600 rounded focus:ring-blue-500';
+                checkbox.value = port;
+                checkbox.checked = true; // Default to all selected
+
+                const span = document.createElement('span');
+                span.className = 'text-sm text-gray-700';
+                span.textContent = port;
+
+                label.appendChild(checkbox);
+                label.appendChild(span);
+                portOptions.appendChild(label);
             });
 
-            // Add debounced event listener for filter changes
-            let debounceTimer;
-            portFilter.addEventListener('change', function() {
-                clearTimeout(debounceTimer);
-                debounceTimer = setTimeout(() => {
-                    processData();
-                }, 300); // 300ms debounce
-            });
+            // Add event listeners
+            setupPortFilterEvents();
+
+            // Initialize filter text
+            updatePortFilterText();
 
             portFilterInitialized = true;
+        }
+
+        function updatePortFilterText() {
+            const checkedBoxes = document.querySelectorAll('.port-checkbox:checked');
+            const portFilterText = document.getElementById('portFilterText');
+
+            if (checkedBoxes.length === 0) {
+                portFilterText.textContent = 'No ports selected';
+                document.getElementById('portAll').checked = false;
+            } else if (checkedBoxes.length === document.querySelectorAll('.port-checkbox').length) {
+                portFilterText.textContent = 'All Ports';
+                document.getElementById('portAll').checked = true;
+            } else {
+                const selectedPorts = Array.from(checkedBoxes).map(cb => cb.value);
+                if (selectedPorts.length === 1) {
+                    portFilterText.textContent = selectedPorts[0];
+                } else {
+                    portFilterText.textContent = `${selectedPorts.length} ports selected`;
+                }
+                document.getElementById('portAll').checked = false;
+            }
+        }
+
+        function setupPortFilterEvents() {
+            const portFilterContainer = document.getElementById('portFilterContainer');
+            const portFilterDropdown = document.getElementById('portFilterDropdown');
+            const portFilterArrow = document.getElementById('portFilterArrow');
+            const portAllCheckbox = document.getElementById('portAll');
+
+            // Toggle dropdown
+            portFilterContainer.addEventListener('click', function(e) {
+                e.stopPropagation();
+                const isHidden = portFilterDropdown.classList.contains('hidden');
+                portFilterDropdown.classList.toggle('hidden');
+                portFilterArrow.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+            });
+
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                // Don't close if clicking on checkboxes or their labels within the dropdown
+                if (!portFilterContainer.contains(e.target) && !e.target.closest('#portFilterDropdown')) {
+                    portFilterDropdown.classList.add('hidden');
+                    portFilterArrow.style.transform = 'rotate(0deg)';
+                }
+            });
+
+            // Handle "All Ports" checkbox
+            portAllCheckbox.addEventListener('change', function(e) {
+                e.stopPropagation();
+                console.log('All Ports checkbox changed:', this.checked);
+                const isChecked = this.checked;
+                const checkboxes = document.querySelectorAll('.port-checkbox');
+                checkboxes.forEach(cb => cb.checked = isChecked);
+                updatePortFilterText();
+                processData();
+            });
+
+            // Handle individual port checkboxes
+            document.addEventListener('change', function(e) {
+                if (e.target.classList.contains('port-checkbox')) {
+                    e.stopPropagation();
+                    console.log('Port checkbox changed:', e.target.value, 'checked:', e.target.checked);
+                    updatePortFilterText();
+                    processData();
+                }
+            });
         }
 
         function isValidPortName(name) {
@@ -1001,7 +1085,9 @@
         }
 
         function processData() {
-            const selectedPort = document.getElementById('portFilter').value;
+            // Get selected ports from checkboxes
+            const selectedPorts = Array.from(document.querySelectorAll('.port-checkbox:checked')).map(cb => cb.value);
+            console.log('processData called with selected ports:', selectedPorts);
             const processingIndicator = document.getElementById('processingIndicator');
 
             // Show processing indicator
@@ -1012,7 +1098,7 @@
             // Use requestAnimationFrame for better performance
             requestAnimationFrame(() => {
                 try {
-                    _processDataInternal(selectedPort);
+                    _processDataInternal(selectedPorts);
                 } finally {
                     if (processingIndicator) {
                         processingIndicator.style.display = 'none';
@@ -1021,7 +1107,7 @@
             });
         }
 
-        function _processDataInternal(selectedPort) {
+        function _processDataInternal(selectedPorts) {
             // Get current year
             const currentYear = new Date().getFullYear();
 
@@ -1057,10 +1143,11 @@
                         d['Kategori SPK'] === 'NON PELINDO');
             });
 
-            // Apply port filter if a specific port is selected
-            if (selectedPort) {
-                filteredData = filteredData.filter(d => d.Singgah && d.Singgah.trim() === selectedPort);
-                document.getElementById('filterIndicator').textContent = `Filtered: ${selectedPort} • ${currentYear} • Kedatangan/Keberangkatan/KAPAL PINDAH • SPK PANDU services only`;
+            // Apply port filter if specific ports are selected
+            if (selectedPorts && selectedPorts.length > 0 && selectedPorts.length < document.querySelectorAll('.port-checkbox').length) {
+                filteredData = filteredData.filter(d => d.Singgah && selectedPorts.includes(d.Singgah.trim()));
+                const portText = selectedPorts.length === 1 ? selectedPorts[0] : `${selectedPorts.length} ports`;
+                document.getElementById('filterIndicator').textContent = `Filtered: ${portText} • ${currentYear} • Kedatangan/Keberangkatan/KAPAL PINDAH • SPK PANDU services only`;
             } else {
                 document.getElementById('filterIndicator').textContent = `Filtered: ${currentYear} • Kedatangan/Keberangkatan/KAPAL PINDAH • SPK PANDU services only`;
             }
@@ -1069,8 +1156,10 @@
             const dataToProcess = filteredData.length > 0 ? filteredData : csvData;
 
             // Only destroy and recreate charts if data actually changed
-            const dataHash = dataToProcess.length + '_' + selectedPort;
+            const dataHash = dataToProcess.length + '_' + selectedPorts.sort().join(',');
+            console.log('Current data hash:', dataHash, 'Last hash:', window.lastDataHash);
             if (window.lastDataHash !== dataHash) {
+                console.log('Data changed, recreating charts for ports:', selectedPorts);
                 Object.values(charts).forEach(chart => {
                     if (chart) chart.destroy();
                 });
@@ -1124,11 +1213,13 @@
 
             // Create charts and tables with lazy loading to prevent UI blocking
             setTimeout(() => {
+                console.log('Creating SPK and Lokasi charts');
                 createMonthlySpkChart();
                 createLokasiChart(lokasiChartCurrentPage, lokasiChartItemsPerPage);
             }, 0);
 
             setTimeout(() => {
+                console.log('Creating Trayek, Singgah, GT charts and movement table');
                 createTrayekChart();
                 createSinggahChart();
                 createGTChart();

@@ -6,6 +6,7 @@
     <title>Data Table</title>
     <link rel="preload" href="ina.csv" as="fetch" crossorigin>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
         .gradient-bg {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -59,6 +60,15 @@
         }
         #dataTable tbody td {
             line-height: 1.4;
+        }
+        /* No PKK column should not wrap text and be wider */
+        #dataTable td:nth-child(1), #dataTable th:nth-child(1) {
+            white-space: nowrap;
+            word-wrap: normal;
+            word-break: normal;
+            max-width: none;
+            min-width: 250px;
+            width: 250px;
         }
         #tableBody {
             background: white !important;
@@ -139,9 +149,14 @@
             <div class="p-4 border-b border-gray-200">
                 <div class="flex justify-between items-center">
                     <h2 class="text-lg font-semibold text-gray-800">Data Filters</h2>
-                    <button id="clearFilters" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm">
-                        Clear All Filters
-                    </button>
+                    <div class="flex space-x-2">
+                        <button id="exportExcelBtn" class="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors text-sm">
+                            Export Excel
+                        </button>
+                        <button id="clearFilters" class="px-4 py-2 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors text-sm">
+                            Clear All Filters
+                        </button>
+                    </div>
                 </div>
             </div>
         <!-- Table Container -->
@@ -197,9 +212,6 @@
                     </select>
                     <span class="text-sm text-gray-700">entries</span>
                 </div>
-                <button id="exportBtn" class="px-4 py-2 bg-green-500 text-white rounded-lg hover:bg-green-600 transition-colors text-sm">
-                    Export CSV
-                </button>
             </div>
         </div>
     </main>
@@ -265,7 +277,7 @@
 
         // DOM elements
         const entriesPerPageSelect = document.getElementById('entriesPerPage');
-        const exportBtn = document.getElementById('exportBtn');
+        const exportExcelBtn = document.getElementById('exportExcelBtn');
         const clearFiltersBtn = document.getElementById('clearFilters');
         const tableHeader = document.getElementById('tableHeader');
         const filterHeader = document.getElementById('filterHeader');
@@ -307,7 +319,7 @@
         // Setup event listeners with optimized handlers
         function setupEventListeners() {
             entriesPerPageSelect.addEventListener('change', handleEntriesChange);
-            exportBtn.addEventListener('click', exportToCSV);
+            exportExcelBtn.addEventListener('click', exportToExcel);
             clearFiltersBtn.addEventListener('click', clearAllFilters);
             prevBtn.addEventListener('click', () => changePage(currentPage - 1));
             nextBtn.addEventListener('click', () => changePage(currentPage + 1));
@@ -372,7 +384,10 @@
                 const clearFilterBtn = filterCell.querySelector('.clear-filter-btn');
                 const conditionSelect = filterCell.querySelector('.filter-condition');
 
-                input.addEventListener('input', debounce(() => handleColumnFilter(header), 300));
+                input.addEventListener('input', () => {
+                    console.log(`Input event triggered for column: ${header}, value: "${input.value}"`);
+                    handleColumnFilter(header);
+                });
                 dropdownBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     toggleFilterDropdown(header);
@@ -501,6 +516,7 @@
             // Create column filters if not already created
             if (filterHeader.children.length === 0) {
                 const headers = Object.keys(allData[0]);
+                console.log('Creating filters for headers:', headers);
                 createColumnFilters(headers);
             }
 
@@ -590,11 +606,18 @@
         // Handle column filter input
         function handleColumnFilter(column) {
             const input = document.querySelector(`.column-filter[data-column="${column}"]`);
+            if (!input) {
+                console.error(`Input not found for column: ${column}`);
+                return;
+            }
+
             const value = input.value.toLowerCase().trim();
+            console.log(`Filtering column ${column} with value: "${value}"`);
+
             columnFilters[column] = value;
 
             updateFilterIndicator(column);
-            debouncedApplyFilters();
+            applyFilters();
         }
 
         // Toggle filter dropdown
@@ -702,7 +725,7 @@
             }
 
             updateFilterIndicator(column);
-            debouncedApplyFilters();
+            applyFilters();
         }
 
         // Update filter indicator for column
@@ -768,6 +791,7 @@
         function applyFilters() {
             markPerformance('applyFilters');
             console.log('Applying filters:', columnFilters);
+            console.log('Total data before filtering:', allData.length);
 
             // Check if any filters are active
             const activeFilters = Object.keys(columnFilters).filter(column => {
@@ -775,9 +799,12 @@
                 return filter && (typeof filter === 'string' ? filter.trim() : filter.values && filter.values.length > 0);
             });
 
+            console.log('Active filters:', activeFilters);
+
             // Start with all data or filtered data based on active filters
             if (activeFilters.length === 0) {
                 filteredData = [...allData];
+                console.log('No active filters, using all data');
             } else {
                 filteredData = allData.filter(row => {
                     // Check each active filter
@@ -786,7 +813,11 @@
                         if (typeof filterValue === 'string') {
                             // Text-based filter (legacy)
                             const cellValue = (row[column] || '').toString().toLowerCase();
-                            return cellValue.includes(filterValue);
+                            const matches = cellValue.includes(filterValue);
+                            if (!matches) {
+                                console.log(`Row filtered out for column ${column}: "${cellValue}" does not contain "${filterValue}"`);
+                            }
+                            return matches;
                         } else if (filterValue.type === 'checkbox') {
                             // Checkbox-based filter
                             const { values, condition } = filterValue;
@@ -810,6 +841,7 @@
                         return true;
                     });
                 });
+                console.log('Filtered data count:', filteredData.length);
             }
 
             // Apply sorting if active
@@ -953,30 +985,37 @@
             document.querySelector('.overflow-x-auto').scrollIntoView({ behavior: 'smooth' });
         }
 
-        // Export to CSV
-        function exportToCSV() {
+        // Export to Excel
+        function exportToExcel() {
             if (filteredData.length === 0) {
                 alert('No data to export');
                 return;
             }
 
-            const headers = Object.keys(filteredData[0]);
-            const csvContent = [
-                headers.join(','),
-                ...filteredData.map(row =>
-                    headers.map(header => `"${row[header] || ''}"`).join(',')
-                )
-            ].join('\n');
+            try {
+                // Create workbook and worksheet
+                const wb = XLSX.utils.book_new();
+                const ws = XLSX.utils.json_to_sheet(filteredData);
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-            const link = document.createElement('a');
-            const url = URL.createObjectURL(blob);
-            link.setAttribute('href', url);
-            link.setAttribute('download', `inaport_data_${new Date().toISOString().split('T')[0]}.csv`);
-            link.style.visibility = 'hidden';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+                // Auto-size columns
+                const colWidths = Object.keys(filteredData[0]).map(header => ({
+                    wch: Math.max(header.length, 15) // Minimum width of 15 characters
+                }));
+                ws['!cols'] = colWidths;
+
+                // Add worksheet to workbook
+                XLSX.utils.book_append_sheet(wb, ws, 'INAPORT Data');
+
+                // Generate filename with current date
+                const filename = `inaport_data_${new Date().toISOString().split('T')[0]}.xlsx`;
+
+                // Save file
+                XLSX.writeFile(wb, filename);
+
+            } catch (error) {
+                console.error('Error exporting to Excel:', error);
+                alert('Error exporting to Excel. Please try again.');
+            }
         }
 
         // Utility functions
