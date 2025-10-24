@@ -1,8 +1,8 @@
-name: Run INAPORT Script Daily at 23:00
+name: Run INAPORT Script Bi-weekly at 23:00
 
 on:
   schedule:
-    - cron: '0 23 * * *'  # Every day at 23:00 UTC
+    - cron: '0 23 1,15 * *'  # Every 2 weeks (1st and 15th of each month) at 23:00 UTC
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
